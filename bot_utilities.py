@@ -1,4 +1,5 @@
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from pyrogram import enums
 import sqlite3
 
 # def entities(filter, bot, message, **types): To be added later
@@ -64,9 +65,17 @@ def trusted(bot, message):
 def admin(bot, message, chat=None):
     if chat is None:
         chat = message.chat.id
-    for i in bot.get_chat_members(chat,filter="administrators"):
-        if i.status in ["administrator", "creator"] and i.user.id == message.from_user.id:
+
+    for i in bot.get_chat_members(chat,filter=enums.ChatMembersFilter.ADMINISTRATORS):
+        if i.user == message.from_user:
             return True
+
+
+    # for i in bot.get_chat_members(chat,filter=enums.ChatMembersFilter.ADMINISTRATORS):
+    #     print(i)
+    #     if i.status in [enums.ChatMembersFilter.ADMINISTRATORS] and i.user.id == message.from_user.id:
+    #         return True
+
     return owner(bot, message)
 
 def getuser(bot, message, ID=None):

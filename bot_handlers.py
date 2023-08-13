@@ -3,9 +3,10 @@ from bot_actions import filtermsg, allowedchannels, sendimg, sendvid, deletemess
 from bot_actions import limbolist
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton
 from pyrogram.handlers import MessageHandler
-from pyrogram import filters
+from pyrogram import filters, enums
+from contextlib import redirect_stdout
 import Responses as resp
-import time,sqlite3,json,re
+import time,sqlite3,json,re,argparse,sys,io
 
 ## Load globals
 global statusantiraid
@@ -41,26 +42,88 @@ defaultfilters = json.dumps([("Link Filter",linkfilter,{"delete":0,"notify":0,},
 
 def commandcleaner(bot, message):
     time.sleep(6)
-    deletemessage(bot, message, message.chat.id, message.message_id)
+    deletemessage(bot, message, message.chat.id, message.id)
 
-def cleanmsgs(bot, message):
+def messagesweep(bot, message):
+    """
+    Usage: [NUMBER]
+        /del                              - Help Dialog
+        /del number (no replied message)  - Delete the number of messages above
+        /del (replying to message)        - Delete all messages up to (including) the replied message.
+        /del number (replying to message) - Delete the number of messages after (including) the replied message.
+    Args:
+        bot (class): Class Representing the bot
+        message (message): Object representing the message that triggers the command
+    """
+    # Return of not admin
     if not admin(bot, message):
+        deletemessage(bot, message, message.chat.id, message.id)
         return
-    if not message.reply_to_message:
-        bot.send_message(message.chat.id, "Reply to the message you want to delete until.")
-    else:
-        cur = message.message_id
-        while cur >= message.reply_to_message.message_id:
-            deletemessage(bot, message, message.chat.id, cur)
-            cur -= 1
 
-def delmsg(bot, message):
-    if not admin(bot, message):
+# Create argparse
+    parser = argparse.ArgumentParser(description='Delete messages in this group')
+
+    helpdialog = """
+ Delete messages in this group.
+    /del [-h]                         
+    - Help Dialog
+    
+    /del number (no replied message)  
+    - Delete the number of messages above
+    
+    /del (replying to message)       
+    - Delete all messages up to (including) the replied message.
+    
+    /del number (replying to message)
+    - Delete the number of messages after (including) the replied message.
+
+ positional arguments:
+  number      The number of messages to delete
+
+ optional arguments:
+  -h, --help  show this help message
+    """
+    parser.add_argument('number', type=int, nargs='?', default=None, help='The number of messages to delete')
+    command = message.text.split()
+    args = parser.parse_args(command[1:])
+
+# If no reply and no number
+    if not message.reply_to_message and args.number is None:
+        bot.send_message(message.chat.id, f"```{helpdialog}```", enums.ParseMode.MARKDOWN)
+        deletemessage(bot, message, message.chat.id, message.id)
         return
-    if not message.reply_to_message:
-        bot.send_message(message.chat.id, "Reply to the message you want to delete.")
-    else:
-        deletemessage(bot, message, message.chat.id, message.reply_to_message.message_id)
+
+# If no reply and has number
+    if not message.reply_to_message and args.number is not None:
+        currentmessageid = message.id
+        targetmessageid = message.id - args.number
+        while currentmessageid >= targetmessageid:
+            currentmessage = bot.get_messages(message.chat.id, currentmessageid)
+            if currentmessage.empty:
+                targetmessageid -= 1
+                currentmessageid -= 1
+                continue
+            deletemessage(bot, message, message.chat.id, currentmessageid)
+            currentmessageid -= 1
+        return
+
+# If has reply and no number
+    if message.reply_to_message and args.number is None:
+        currentmessageid = message.id
+        deletemessage(bot, message, message.chat.id, message.id)
+        while currentmessageid >= message.reply_to_message.id:
+            deletemessage(bot, message, message.chat.id, currentmessageid)
+            currentmessageid -= 1
+        return
+
+# If has reply and number
+    if message.reply_to_message and args.number is not None:
+        currentmessageid = message.reply_to_message.id
+        deletemessage(bot, message, message.chat.id, message.id)
+        while currentmessageid >= message.reply_to_message.id - args.number + 1:
+            deletemessage(bot, message, message.chat.id, currentmessageid)
+            currentmessageid -= 1
+        return
 
 def updatefilters(bot, message=None):
     if message != None and not owner(bot,message):
@@ -107,9 +170,9 @@ def enableantiraid(bot, message):
     else:
         msg = bot.send_message(message.chat.id, "Anti-raid already on")
         time.sleep(5)
-        deletemessage(bot, message, message.chat.id, msg.message_id)
+        deletemessage(bot, message, message.chat.id, msg.id)
         return
-    deletemessage(bot,message,message.chat.id, message.message_id)
+    deletemessage(bot,message,message.chat.id, message.id)
 
 def disableantiraid(bot, message):
     if not owner(bot,message) and not admin(bot,message):
@@ -118,27 +181,27 @@ def disableantiraid(bot, message):
     if 'statusantiraid' not in globals() and message.chat.id not in globals()['antiraidchats']:
         msg = bot.send_message(message.chat.id, "Antiraid not on")
         time.sleep(5)
-        deletemessage(bot, message, message.chat.id, msg.message_id)
+        deletemessage(bot, message, message.chat.id, msg.id)
         return
     elif message.chat.id in globals()['antiraidchats']:
         antiraidchats.remove(message.chat.id)
         if len(antiraidchats) == 0:
             bot.remove_handler(*statusantiraid)
             del statusantiraid
-    deletemessage(bot,message,message.chat.id, message.message_id)
+    deletemessage(bot,message,message.chat.id, message.id)
 
 def antiraid(bot, message):
     if trusted(bot,message):
         return
     if message.chat.id not in antiraidchats:
         return
-    deletemessage(bot,message,message.chat.id, message.message_id)
+    deletemessage(bot,message,message.chat.id, message.id)
 
 def noproblemb(bot, message):
     bot.send_message(message.chat.id, "No problem cuz")
 
 def trust(bot,message):
-    bot.delete_messages(message.chat.id, message.message_id)
+    bot.delete_messages(message.chat.id, message.id)
     if not admin(bot,message):
         return
     for i in message.entities:
@@ -153,12 +216,12 @@ def trust(bot,message):
                 sql(f"INSERT OR REPLACE INTO [{message.chat.id}] (id, istrusted) VALUES ({user.id},1)", mode="INSERT")
                 msg = bot.send_message(message.chat.id,"User is now trusted")
                 time.sleep(5)
-                bot.delete_messages(message.chat.id, msg.message_id)
+                bot.delete_messages(message.chat.id, msg.id)
             except:
                 bot.send_message(message.chat.id, "Vlad fucked up tell him to take a look")
 
 def untrust(bot,message):
-    bot.delete_messages(message.chat.id, message.message_id)
+    bot.delete_messages(message.chat.id, message.id)
     if not admin(bot,message):
         return
     for i in message.entities:
@@ -173,7 +236,7 @@ def untrust(bot,message):
                 sql(f"INSERT OR REPLACE INTO [{message.chat.id}] (id, istrusted) VALUES ({user.id},0)", mode="INSERT")
                 msg = bot.send_message(message.chat.id,"User is now untrusted")
                 time.sleep(5)
-                bot.delete_messages(message.chat.id, msg.message_id)
+                bot.delete_messages(message.chat.id, msg.id)
             except:
                 bot.send_message(message.chat.id, "Vlad fucked up tell him to take a look")
 
@@ -182,10 +245,10 @@ def forwardrm(bot, message):
         return
     if not message.forward_from_chat:
         return
-    deletemessage(bot, message, message.chat.id, message.message_id)
+    deletemessage(bot, message, message.chat.id, message.id)
 
 def pedobait(bot, message):
-    deletemessage(bot, message, message.chat.id, message.message_id)
+    deletemessage(bot, message, message.chat.id, message.id)
     x = sql(f"SELECT isbait FROM universe WHERE id = {message.from_user.id}")
     try:
         if bool(x[0][0]):
@@ -202,7 +265,7 @@ def isadmin(bot,message):
         bot.send_message(message.chat.id, "You are NOT an admin")
 
 def banuser(bot, message):
-    deletemessage(bot, message, message.chat.id, message.message_id)
+    deletemessage(bot, message, message.chat.id, message.id)
     if '-g' in texttype(bot,message):
         msg = message.text.split(r" ")
         msg.remove('-g')
@@ -229,21 +292,21 @@ def servicerm(bot, message):
     elif message.new_chat_members is not None:
         for i in message.new_chat_members:
             if i.id != bot.get_me().id:
-                deletemessage(bot, message, message.chat.id, message.message_id)
+                deletemessage(bot, message, message.chat.id, message.id)
             else:
                 allowedchannels(bot, message)
     else:
-        deletemessage(bot, message, message.chat.id, message.message_id)
+        deletemessage(bot, message, message.chat.id, message.id)
 
 def isowner(bot, message):
-    deletemessage(bot, message, message.chat.id, message.message_id)
+    deletemessage(bot, message, message.chat.id, message.id)
     if owner(bot, message):
         bot.send_message(message.chat.id, f"{getname(bot, message)} is my owner")
     else:
         bot.send_message(message.chat.id, f"{getname(bot, message)} is NOT my owner")
 
 def istrusted(bot, message):
-    deletemessage(bot, message, message.chat.id, message.message_id)
+    deletemessage(bot, message, message.chat.id, message.id)
     if len(message.text.split(r" ")) < 2:
         if trusted(bot,message):
             msg = bot.send_message(message.chat.id, "You are trusted")
@@ -259,7 +322,7 @@ def istrusted(bot, message):
         except:
             msg = bot.send_message(message.chat.id, f"{getname(bot, message, getid(bot,message))} is NOT Trusted")
     time.sleep(20)
-    deletemessage(bot, message, message.chat.id, msg.message_id)
+    deletemessage(bot, message, message.chat.id, msg.id)
 
 def invade(bot,message):
     if not owner(bot, message):
@@ -271,19 +334,19 @@ def invade(bot,message):
         bot.send_message(message.chat.id, f"Failed to join {bot.get_chat(ID)}")
 
 def getidh(bot, message):
-    deletemessage(bot, message, message.chat.id, message.message_id)
+    deletemessage(bot, message, message.chat.id, message.id)
     if len(message.text.split(r" ")) < 2:
         msg = bot.send_message(message.chat.id, message.from_user.id)
     else:
         msg = bot.send_message(message.chat.id, getid(bot,message))
     time.sleep(20)
-    deletemessage(bot, message, message.chat.id, msg.message_id)
+    deletemessage(bot, message, message.chat.id, msg.id)
 
 def getchid(bot, message):
-    deletemessage(bot, message, message.chat.id, message.message_id)
+    deletemessage(bot, message, message.chat.id, message.id)
     msg = bot.send_message(message.chat.id, message.chat.id)
     time.sleep(20)
-    deletemessage(bot, message, message.chat.id, msg.message_id)
+    deletemessage(bot, message, message.chat.id, msg.id)
 
 def getchatlist(bot,message):
     if not owner(bot,message):
@@ -305,7 +368,7 @@ def newchat(bot, callback_query):
         sql(f"DELETE FROM universe WHERE id = {callback_query.message.chat.id}", mode="INSERT")
         hand = limbolist[f"{callback_query.message.chat.id}"]
         bot.remove_handler(*hand)
-        bot.delete_messages(callback_query.message.chat.id, callback_query.message.message_id)
+        bot.delete_messages(callback_query.message.chat.id, callback_query.message.id)
         bot.leave_chat(callback_query.message.chat.id)
     elif 'deny' in callback_query.data:
         match = re.search(r"(\-\d*\b)", callback_query.message.text)
@@ -314,7 +377,7 @@ def newchat(bot, callback_query):
         sql(f"INSERT OR REPLACE INTO universe (id, chatunauth) VALUES ({match.group()},1)", mode="INSERT")
         bot.send_message(match.group(),"Sorry the owner denied your request. Goodbye.")
         bot.leave_chat(match.group())
-        bot.delete_messages(callback_query.message.chat.id, callback_query.message.message_id)
+        bot.delete_messages(callback_query.message.chat.id, callback_query.message.id)
     elif 'request' in callback_query.data:
         sql(f"DELETE FROM universe WHERE id = {callback_query.message.chat.id}", mode="INSERT")
         reply_markup=InlineKeyboardMarkup(
@@ -325,13 +388,13 @@ def newchat(bot, callback_query):
                 ],
             ])
         msgowners(bot,callback_query.message, f"A request was sent from {callback_query.message.chat.title} | {callback_query.message.chat.id} by this user: {getname(bot,callback_query.message,callback_query.from_user.id)}", reply_markup = reply_markup)
-        deletemessage(bot, callback_query.message, callback_query.message.chat.id, callback_query.message.message_id)
+        deletemessage(bot, callback_query.message, callback_query.message.chat.id, callback_query.message.id)
         msg = bot.send_message(callback_query.message.chat.id, "We're asking the owners now.")
         time.sleep(10)
-        deletemessage(bot, callback_query.message, callback_query.message.chat.id, msg.message_id)
+        deletemessage(bot, callback_query.message, callback_query.message.chat.id, msg.id)
 
 def addchat(bot, callback_query):
-    deletemessage(bot, callback_query.message, callback_query.message.chat.id, callback_query.message.message_id)
+    deletemessage(bot, callback_query.message, callback_query.message.chat.id, callback_query.message.id)
     match = re.search(r"(\-\d*\b)", callback_query.message.text)
     try:
         sql(f"CREATE TABLE IF NOT EXISTS [{match.group()}] (id PRIMARY KEY,keywords,keyactions,istrusted,ingroups,activethresh)", mode="INSERT")
@@ -350,7 +413,7 @@ def addchat(bot, callback_query):
 
 def helpbot(bot, message):
     bot.send_message(message.chat.id, f"{resp.HELP_DIALOG}")
-    deletemessage(bot, message, message.chat.id, message.message_id)
+    deletemessage(bot, message, message.chat.id, message.id)
 
 def leave(bot, message):
     if owner(bot,message):
@@ -365,7 +428,7 @@ def leave(bot, message):
         msg = bot.send_message(message.chat.id, "You are not authorized to use the /leave command")
         time.sleep(5)
         try:
-            bot.delete_messages(message.chat.id, msg.message_id)
+            bot.delete_messages(message.chat.id, msg.id)
         except:
 
 # def linkrm(bot, message):

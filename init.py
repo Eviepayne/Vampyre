@@ -4,11 +4,9 @@
 from pyrogram import Client, filters, idle
 from pyrogram.filters import create
 from pyrogram.handlers import MessageHandler, CallbackQueryHandler
-#from bot_handlers import linkrm, inviterm, pedorm, snaprm, forwardrm, noproblemb, commandcleaner, trust, untrust, cleanmsgs
-from bot_handlers import forwardrm, noproblemb, commandcleaner, trust, untrust, cleanmsgs, loadfilters, unloadfilters, getchats
+from bot_handlers import forwardrm, noproblemb, commandcleaner, trust, untrust, messagesweep, loadfilters, unloadfilters, getchats
 from bot_handlers import banuser, isowner, pedobait, servicerm, helpbot, getchid, getid, leave, invade, getidh, getchatlist
 from bot_handlers import istrusted, sql, enableantiraid, disableantiraid, antiraid, updatefilters, isadmin, newchat, addchat
-from bot_handlers import delmsg#,controlpanel, filtermanager, callbacktest, callbackbutton
 import sqlite3, json
 
 import configparser
@@ -31,7 +29,7 @@ def main():
 
     ## initalization
     # load filters
-    loadfilters(bot)
+    loadfilters(bot) # TODO Figure out how to dynamically have different filters in the bot
 
     ## Commands
     # Callback Queries
@@ -42,8 +40,7 @@ def main():
     bot.add_handler(MessageHandler(getchatlist,filters.command(["chats","chl"])))
     bot.add_handler(MessageHandler(invade,filters.command(["invade","in"])))
     # admin commands
-    bot.add_handler(MessageHandler(cleanmsgs,filters.command(["clean","purge","p"])))
-    bot.add_handler(MessageHandler(delmsg,filters.command(["del","delete"])))
+    bot.add_handler(MessageHandler(messagesweep,filters.command(["del","d","delete"])))
     bot.add_handler(MessageHandler(trust,filters.command(["trust","t"])))
     bot.add_handler(MessageHandler(untrust,filters.command(["untrust","ut"])))
     bot.add_handler(MessageHandler(banuser,filters.command(["ban", "b"])))
@@ -67,5 +64,7 @@ def main():
     bot.add_handler(MessageHandler(commandcleaner,filters.regex(r"(?i)(^\/.*$)")))
     bot.add_handler(MessageHandler(forwardrm,filters.forwarded))
     bot.add_handler(MessageHandler(noproblemb,filters.regex(r"(?i)(?=.*thanks)(?=.*@vladtheimplier_bot)")))
+
+    print("Ready")
 
 bot.run(main())
