@@ -65,6 +65,8 @@ def messagesweep(bot, message):
 
     helpdialog = """
  Delete messages in this group.
+ To delete a target message, reply to the message with command: /del 1
+ 
     /del [-h]                         
     - Help Dialog
     
