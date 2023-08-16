@@ -55,17 +55,17 @@ def messagesweep(bot, message):
         bot (class): Class Representing the bot
         message (message): Object representing the message that triggers the command
     """
-    # Return of not admin
+ # Return of not admin
     if not admin(bot, message):
         deletemessage(bot, message, message.chat.id, message.id)
         return
 
-# Create argparse
+ # Create argparse
     parser = argparse.ArgumentParser(description='Delete messages in this group')
 
     helpdialog = """
- Delete messages in this group.
- To delete a target message, reply to the message with command: /del 1
+  Delete messages in this group.
+  To delete a target message, reply to the message with command: /del 1
  
     /del [-h]                         
     - Help Dialog
@@ -79,23 +79,23 @@ def messagesweep(bot, message):
     /del number (replying to message)
     - Delete the number of messages after (including) the replied message.
 
- positional arguments:
+  positional arguments:
   number      The number of messages to delete
 
- optional arguments:
+  optional arguments:
   -h, --help  show this help message
     """
     parser.add_argument('number', type=int, nargs='?', default=None, help='The number of messages to delete')
     command = message.text.split()
     args = parser.parse_args(command[1:])
 
-# If no reply and no number
+ # If no reply and no number
     if not message.reply_to_message and args.number is None:
         bot.send_message(message.chat.id, f"```{helpdialog}```", enums.ParseMode.MARKDOWN)
         deletemessage(bot, message, message.chat.id, message.id)
         return
 
-# If no reply and has number
+ # If no reply and has number
     if not message.reply_to_message and args.number is not None:
         currentmessageid = message.id
         targetmessageid = message.id - args.number
@@ -109,7 +109,7 @@ def messagesweep(bot, message):
             currentmessageid -= 1
         return
 
-# If has reply and no number
+ # If has reply and no number
     if message.reply_to_message and args.number is None:
         currentmessageid = message.id
         deletemessage(bot, message, message.chat.id, message.id)
@@ -118,12 +118,17 @@ def messagesweep(bot, message):
             currentmessageid -= 1
         return
 
-# If has reply and number
+ # If has reply and number
     if message.reply_to_message and args.number is not None:
-        currentmessageid = message.reply_to_message.id
-        deletemessage(bot, message, message.chat.id, message.id)
-        while currentmessageid >= message.reply_to_message.id - args.number + 1:
-            deletemessage(bot, message, message.chat.id, currentmessageid)
+        currentmessageid = message.reply_to_message
+        targetmessageid = message.reply_to_message - args.number
+        while currentmessageid >= targetmessageid:
+            currentmessage = bot.get_messages(message.chat.reply_to_message, currentmessageid)
+            if currentmessage.empty:
+                targetmessageid -= 1
+                currentmessageid -= 1
+                continue
+            deletemessage(bot, message, message.chat.reply_to_message, currentmessageid)
             currentmessageid -= 1
         return
 
