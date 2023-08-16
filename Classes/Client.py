@@ -28,8 +28,6 @@ class Client(PyrogramClient):
         if mode == None:
             return output
 
-    #def Keyboard(self, )
-
     def initialize_database(self):
         try:
             self.sql("CREATE TABLE chats (id INTEGER, 'type' TEXT, title TEXT, username TEXT, first_name TEXT, last_name TEXT, bio TEXT, description TEXT, invite_link TEXT, filters TEXT, user_index_date INTEGER, chat_auth INTEGER, CONSTRAINT chats_PK PRIMARY KEY (id))", mode="Write")
