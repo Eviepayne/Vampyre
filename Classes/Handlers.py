@@ -1,8 +1,9 @@
 import sqlite3, os, logging, argparse, time
-from pyrogram import filters, enums, types
+from pyrogram import filters, enums, types, errors
 from Classes.Keyboard import Keyboard
 from Classes.Callback import Callback
 from Classes.ArgparseOverride import ArgumentParser
+from Classes.Manager import HandlerManager
 
 lastupdate = {}
 lastusersindex = {}
@@ -33,11 +34,16 @@ class Handlers():
                 Callback.DestroyCallback(bot, guid, handler)
             if selectedguid == callback_actions['Delete Messages']:
                 deletelist.append(message.message.id)
-                bot.delete_messages(message.message.chat.id, deletelist)
+                try:
+                    bot.delete_messages(message.message.chat.id, deletelist)
+                except Exception as e:
+                    bot.send_message(message.message.chat.id, f"We failed to delete the following messages:\n{deletelist}\nThis was the issue: {e}")
+
             if selectedguid == callback_actions['Cancel Operation']:
                 deletelist.clear()
                 deletelist.append(message.message.id)
                 bot.delete_messages(message.message.chat.id, deletelist)
+
             return
 
      # Return if not admin
@@ -147,6 +153,16 @@ class Handlers():
         Cancel = Keyboard.create_button(text="Cancel Operation",callback_data=guidcancel)
         keyboard = Keyboard.create_keyboard(Delete, Cancel)
         bot.edit_message_text(statusmessage.chat.id, statusmessage.id, f"Confirm deleting {len(deletelist)} messages", reply_markup=keyboard)
+        # Timeout for callback
+        time.sleep(30)
+        manager = HandlerManager()
+        handlerdelete = manager.get_handler(guiddelete)
+        handlercancel = manager.get_handler(guidcancel)
+        if handlerdelete:
+            Callback.DestroyCallback(bot, guiddelete, handlerdelete)
+            Callback.DestroyCallback(bot, guidcancel, handlercancel)
+            bot.delete_messages(statusmessage.chat.id, statusmessage.id)
+        
 
   # is_admin =====================================================================================
     def is_admin(bot, chatid, userid):
@@ -160,7 +176,12 @@ class Handlers():
         Returns:
             Bool: Returns True if the user is an administrator or owner
         """
-        ChatMember = bot.get_chat_member(chatid, userid)
+        try:
+            ChatMember = bot.get_chat_member(chatid, userid)
+        except errors.FloodWait as e:
+            bot.send_message(chatid, "We are being rate limited. Please wait.")
+            return False
+        
         if ChatMember.status == enums.ChatMemberStatus.ADMINISTRATOR or ChatMember.status == enums.ChatMemberStatus.OWNER:
             return True
 
