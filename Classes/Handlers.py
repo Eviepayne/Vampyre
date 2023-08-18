@@ -16,9 +16,11 @@ class Handlers():
     
   # Message Sweep =====================================================================================
     def messagesweep(bot, message):
-        """Deletes messages
-        bot = bot object
-        message = content passed from handler
+        """Deletes Messages
+
+        Args:
+            bot (Class): The Bot
+            message (message | CallbackQuery): The contents being sent via Handler
         """
 
      # Handle CallbackQueries
@@ -162,11 +164,14 @@ class Handlers():
 
     # Cleanup for messagesweep
     def messagesweepcleanup(bot, statusmessage, guiddelete, guidcancel):
-        """ Cleans up after messagesweep
-        bot = bot object
-        statusmessage = message object for the bots response
-        guiddelete = if for the delete handler
-        guidcancel = id for the cancel handler
+        """Cleanup after Callback is made
+        This is added in a new function for threading purposes
+
+        Args:
+            bot (Class): The Bot
+            statusmessage (message): The Message the bot is using to facilitate the original method
+            guiddelete (Str guid): The Delete Callback trigger
+            guidcancel (Str guid): The Cancel Callback trigger
         """
         time.sleep(30)
         with handler_lock:
@@ -180,10 +185,15 @@ class Handlers():
 
   # is_admin =====================================================================================
     def is_admin(bot, chatid, userid):
-        """Returns true if chatid is admin of userid
-        bot = bot object
-        chatid = chat id
-        userid = user id
+        """Check if a user in a chat is an admin/owner
+
+        Args:
+            bot (Class): The Bot
+            chatid (Int): Chat Unique Identifier
+            userid (int): User Unique Identifier
+
+        Returns:
+            Bool: True/False
         """
         try:
             ChatMember = bot.get_chat_member(chatid, userid)
@@ -197,71 +207,88 @@ class Handlers():
 
   # get user id =====================================================================================
     def get_user_id(bot, message):
-        """Returns a user id
+        """Show a user's ID
 
         Args:
-            bot (bot): bot Class Object
-            message (message): Message Object
+            bot (Class): The Bot
+            message (message): The message
         """
 
       # Create argparse
-        parser = ArgumentParser(description='Returns the Unique identifier for the user', exit_on_error=False)
+        parser = ArgumentParser(description='Returns the Unique identifier')
 
-        helpdialog = """
-       Returns the Unique identifier for the user
-    
-        /id [-h]                         
-        - Help Dialog
-        
-        /id  
-        - Gets the sending user's ID
-        
-        /id (replying to message)     
-        - Gets the id of the user from the reply message
-        
-        /id @username
-        - Get's the ID of the user mentioned
-
-       positional arguments:
-       @username      The mentioned user to return ID
-
-       optional arguments:
-       -h, --help  show this help message
+        helpdialog = textwrap.dedent(
         """
+        **Show Unique IDs for users and chats**
+
+        **Commands**
+
+        `/id` [-h | help] 
+        Display the __Help Dialog__.
+
+        `/id`
+        Show your own ID
+
+        `/id @user`
+        Show the ID of the user you mentioned
+
+        `/id` (when replying to a message)
+        Show the ID of the user you replied to
+
+        `/id -c`
+        Show the current chat's ID.
+
+        `/id -m` (when replying to a message)
+        Show the ID of the message you're replying to
+
+        **Arguments**
+
+        --Optional Arguments:--
+        `-h`, `--help`  
+        Show the help message.
+
+        `-c`, `--chat`
+        Show that chat's ID
+
+        `-m`, `--message`
+        Show the message ID, Requires that you're replying the message
+        """)
         parser.add_argument('username', type=str, nargs='?', default=None, help='User to get the ID of')
         parser.add_argument('-c', action='store_true', help='get the chats ID')
+        parser.add_argument('-m', action='store_true', help='Get the message ID')
         command = message.text.split()
         try:
             args = parser.parse_args(command[1:])
         except Exception as e:
-            bot.send_message(message.chat.id, f"Invalid input, please ensure you're using this command correctly:\n{helpdialog}")
+            bot.send_message(message.chat.id, f"Invalid Argument\n{helpdialog}")
 
+      # Delete the original command
+        bot.delete_messages(message.chat.id, message.id)
+
+      # Getting the chat ID
         if args.c:
-            bot.delete_messages(message.chat.id, message.id)
-            bot.send_message(message.chat.id, f"{message.chat.id}")
+            bot.send_message(message.chat.id, message.chat.id)
             return
 
       # Getting your own id
         if not message.reply_to_message and args.username is None:
-            bot.delete_messages(message.chat.id, message.id)
-            bot.send_message(message.chat.id, f"{message.from_user.id}")
+            bot.send_message(message.chat.id, message.from_user.id)
             return
       
       # Getting id from reply
         if message.reply_to_message and args.username is None:
-            bot.delete_messages(message.chat.id, message.id)
-            bot.send_message(message.chat.id, f"{message.reply_to_message.from_user.id}")
+            bot.send_message(message.chat.id, message.reply_to_message.from_user.get_user_id)
             return
         
+        if message.reply_to_message and args.m is not None:
+            bot.send_message(message.chat.id, message.reply_to_message.id)
+
       # Getting id from mention/text mention  
         if not message.reply_to_message and args.username is not None:
-            bot.delete_messages(message.chat.id, message.id)
             if message.mentioned == True:
                 user = bot.get_users(args.username)
-            else:
-                text_mention = next(
-                    (obj for obj in message.entities if obj.type == enums.MessageEntityType.TEXT_MENTION),None
-                )
+            elif next((obj for obj in message.entities if obj.type == enums.MessageEntityType.TEXT_MENTION),None):
+                text_mention = next((obj for obj in message.entities if obj.type == enums.MessageEntityType.TEXT_MENTION),None)
                 user = text_mention.user
             bot.send_message(message.chat.id, user.id)
 
