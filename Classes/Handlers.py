@@ -1,9 +1,9 @@
-import sqlite3, os, logging, argparse, time, threading, textwrap
-from pyrogram import filters, enums, types, errors
+import sqlite3, os, logging, time, threading, textwrap # Threading is here so callback cleanups don't have issues handling 2 threads
+from pyrogram import filters, enums, types
 from Classes.Keyboard import Keyboard
-from Classes.Callback import Callback
 from Classes.ArgparseOverride import ArgumentParser
-from Classes.Manager import HandlerManager
+from Classes.HandlerManager import HandlerManager
+from Classes.Methods import Methods
 
 lastupdate = {}
 lastusersindex = {}
@@ -14,7 +14,7 @@ class Handlers():
     def __init__(self):
         pass
     
-  # Message Sweep =====================================================================================
+  # Message Sweep ===================================================================================
     def messagesweep(bot, message):
         """Deletes Messages
 
@@ -22,18 +22,18 @@ class Handlers():
             bot (Class): The Bot
             message (message | CallbackQuery): The contents being sent via Handler
         """
-
+        Handler_Manager = HandlerManager()
      # Handle CallbackQueries
-        if type(message) is types.CallbackQuery and not Handlers.is_admin(bot, message.message.chat.id, message.from_user.id):
+        if type(message) is types.CallbackQuery and not Methods.is_admin(bot, message.message.chat.id, message.from_user.id):
             return
         elif type(message) is types.CallbackQuery:
             callback_actions = {button.text: button.callback_data for row in message.message.reply_markup.inline_keyboard for button in row if hasattr(button, 'text') and hasattr(button, 'callback_data')}
             selectedguid = message.data
             for guid in callback_actions.values():
-                data, handler = Callback.ReadCallback(guid)
+                data, handler = Handler_Manager.ReadCallback(guid)
                 if guid == selectedguid:
                     deletelist = data['deletelist']
-                Callback.DestroyCallback(bot, guid, handler)
+                Handler_Manager.DestroyCallback(bot, guid, handler)
             if selectedguid == callback_actions['Delete Messages']:
                 deletelist.append(message.message.id)
                 try:
@@ -50,7 +50,7 @@ class Handlers():
         bot.delete_messages(message.chat.id, message.id)
 
      # Return if not admin
-        if not Handlers.is_admin(bot, message.chat.id, message.from_user.id):
+        if not Methods.is_admin(bot, message.chat.id, message.from_user.id):
             bot.delete_messages(message.chat.id, message.id)
             return
 
@@ -154,13 +154,14 @@ class Handlers():
                 currentmessageid -= 1
 
      # Create callback to confirm deletion
-        guiddelete = Callback.CreateCallback(bot, Handlers.messagesweep, deletelist=deletelist)
-        guidcancel = Callback.CreateCallback(bot, Handlers.messagesweep, deletelist=deletelist)
+        guiddelete = Handler_Manager.CreateCallback(bot, Handlers.messagesweep, deletelist=deletelist)
+        guidcancel = Handler_Manager.CreateCallback(bot, Handlers.messagesweep, deletelist=deletelist)
         Delete = Keyboard.create_button(text="Delete Messages",callback_data=guiddelete)
         Cancel = Keyboard.create_button(text="Cancel Operation",callback_data=guidcancel)
         keyboard = Keyboard.create_keyboard(Delete, Cancel)
         bot.edit_message_text(statusmessage.chat.id, statusmessage.id, f"Confirm deleting {len(deletelist)} messages", reply_markup=keyboard)        
         threading.Thread(target=Handlers.messagesweepcleanup, args=(bot, statusmessage, guiddelete, guidcancel)).start()
+    messagesweep.filter = filters.command(["del","d","delete"])
 
     # Cleanup for messagesweep
     def messagesweepcleanup(bot, statusmessage, guiddelete, guidcancel):
@@ -173,37 +174,15 @@ class Handlers():
             guiddelete (Str guid): The Delete Callback trigger
             guidcancel (Str guid): The Cancel Callback trigger
         """
-        time.sleep(30)
+        time.sleep(10)
         with handler_lock:
-            manager = HandlerManager()
-            handlerdelete = manager.get_handler(guiddelete)
-            handlercancel = manager.get_handler(guidcancel)
+            Handler_Manager = HandlerManager()
+            handlerdelete = Handler_Manager.get_handler(guiddelete)
+            handlercancel = Handler_Manager.get_handler(guidcancel)
             if handlerdelete:
-                Callback.DestroyCallback(bot, guiddelete, handlerdelete)
-                Callback.DestroyCallback(bot, guidcancel, handlercancel)
+                Handler_Manager.DestroyCallback(bot, guiddelete, handlerdelete)
+                Handler_Manager.DestroyCallback(bot, guidcancel, handlercancel)
             bot.delete_messages(statusmessage.chat.id, statusmessage.id)
-
-  # is_admin =====================================================================================
-    def is_admin(bot, chatid, userid):
-        """Check if a user in a chat is an admin/owner
-
-        Args:
-            bot (Class): The Bot
-            chatid (Int): Chat Unique Identifier
-            userid (int): User Unique Identifier
-
-        Returns:
-            Bool: True/False
-        """
-        try:
-            ChatMember = bot.get_chat_member(chatid, userid)
-
-        except errors.FloodWait as e:
-            bot.send_message(chatid, "We are being rate limited. Please wait.")
-            return False
-        
-        if ChatMember.status == enums.ChatMemberStatus.ADMINISTRATOR or ChatMember.status == enums.ChatMemberStatus.OWNER:
-            return True
 
   # get user id =====================================================================================
     def get_user_id(bot, message):
@@ -267,30 +246,39 @@ class Handlers():
 
       # Getting the chat ID
         if args.c:
-            bot.send_message(message.chat.id, message.chat.id)
+            bot.send_message(message.chat.id, f"Chat ID: {message.chat.id}")
             return
 
       # Getting your own id
         if not message.reply_to_message and args.username is None:
-            bot.send_message(message.chat.id, message.from_user.id)
-            return
-      
-      # Getting id from reply
-        if message.reply_to_message and args.username is None:
-            bot.send_message(message.chat.id, message.reply_to_message.from_user.get_user_id)
+            bot.send_message(message.chat.id, f"Your ID: {message.from_user.id}")
             return
         
+      # Getting the message ID
         if message.reply_to_message and args.m is not None:
-            bot.send_message(message.chat.id, message.reply_to_message.id)
+            bot.send_message(message.chat.id, f"Message ID: {message.reply_to_message.id}")
+            return
+        
+      # Getting id from reply
+        if message.reply_to_message and args.username is None:
+            bot.send_message(message.chat.id, f"Users's ID: {message.reply_to_message.from_user.id}")
+            return
 
       # Getting id from mention/text mention  
         if not message.reply_to_message and args.username is not None:
-            if message.mentioned == True:
+            if next((obj for obj in message.entities if obj.type == enums.MessageEntityType.MENTION),None):
+                mention = next((obj for obj in message.entities if obj.type == enums.MessageEntityType.MENTION),None)
                 user = bot.get_users(args.username)
             elif next((obj for obj in message.entities if obj.type == enums.MessageEntityType.TEXT_MENTION),None):
                 text_mention = next((obj for obj in message.entities if obj.type == enums.MessageEntityType.TEXT_MENTION),None)
                 user = text_mention.user
-            bot.send_message(message.chat.id, user.id)
+            bot.send_message(message.chat.id, f"User's ID: {user.id}")
+    get_user_id.filter = filters.command(["id", "i", "getid"])
+
+  # test handler ====================================================================================
+    def test_handler(bot, message):
+        bot.delete_messages(message.chat.id, message.id)
+    test_handler.filter = filters.command(["t", "test"])
 
   # allmessages =====================================================================================
     def all_messages(bot, message):
@@ -314,4 +302,3 @@ class Handlers():
 
         # update user index
         bot.update_users(message.chat.id)
-

@@ -2,7 +2,7 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 class Keyboard:
 
-    def create_button(**kwargs): # This exists so when I import the InlineKeyboardButton type, it's only in the class and not anywhere else
+    def create_button(**kwargs): # This exists so I don't have to import keyboardbuttons everywhere
         return InlineKeyboardButton(**kwargs)
 
     def create_keyboard(*buttons):

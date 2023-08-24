@@ -1,20 +1,22 @@
-import sqlite3, os, logging, time
+import sqlite3, os, logging, time, json
 from pyrogram import Client as PyrogramClient
+from pyrogram import errors, enums
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 class Client(PyrogramClient):
 
-    def __init__(self, *args, logger, bot_owner, **kwargs):
+    def __init__(self, bot_owner, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.db_name = f"{self.name}.db"
         self.db_path = os.path.join("data", self.db_name)
-        self.logger = logger
+        self.logger = logging.getLogger('Vampyre')
         self.file_handler = logging.FileHandler('Vampyre.log')
-        self.file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
         self.logger.addHandler(self.file_handler)
+        self.file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
         self.bot_owner = bot_owner
-        self.linkfilter = r'(?i)(h\s*t\s*t\s*p)|(h\s*\w\s*\w\s*p\:)|(h\s*\w\s*\w\s*p\s*s\:)|(\:\s*\/\s*\/)|(w\s*w\s*w\s*\.)|(w\s*w\s*w\s*d\s*o\s*t)|(\.\s*g\s*g)|(g\s*g\s*\/)|(d\s*o\s*t\s*g\s*g)|(\.\s*c\s*o\s*m)|(c\s*o\s*m\s*\/)|(d\s*o\s*t\s*c\s*o\s*m)|(\.\s*x\s*y\s*z)|(x\s*y\s*z\s*\/)|(d\s*o\s*t\s*x\s*y\s*z)|(\.\s*n\s*z)|(\s+n\s*z\s+)|(\s*n\s*z\s*\/)|(d\s*o\s*t\s*n\s*z)|(\.\s*t\s*v)|(\s*t\s*v\s*\/)|(d\s*o\s*t\s*t\s*v)|(\.\s*o\s*r\s*g)|(\s*o\s*r\s*g\s*\/)|(d\s*o\s*t\s*o\s*r\s*g)|(v\s*m\s*\.\s*t\s*i\s*k\s*t\s*o\s*k)'
-        self.invitefilter = r'(?i)(t\s*\.m\s*e)|(t\s*d\s*o\s*t\s*m\s*e)|(t\s*m\s*e\s*\/)|(\/\s*j\s*o\s*i\s*n\s*c\s*h\s*a\s*t\s*\/)(.{16})|(^\/.{16}$)|(^.{16}\/$)'
-
+        
+ # Access database ===============================================
     def sql(self, query, mode=None):
         self.connection = sqlite3.connect(self.db_path)
         self.cursor = self.connection.cursor()
@@ -28,6 +30,7 @@ class Client(PyrogramClient):
         if mode == None:
             return output
 
+  # Instantiate database objects =================================
     def initialize_database(self):
         try:
             self.sql("CREATE TABLE chats (id INTEGER, 'type' TEXT, title TEXT, username TEXT, first_name TEXT, last_name TEXT, bio TEXT, description TEXT, invite_link TEXT, filters TEXT, user_index_date INTEGER, chat_auth INTEGER, CONSTRAINT chats_PK PRIMARY KEY (id))", mode="Write")
@@ -41,24 +44,9 @@ class Client(PyrogramClient):
         try:
             ChatMember = self.get_chat_member(chatid, userid)
             self.sql(f"INSERT OR REPLACE INTO [users] (id, first_name, last_name, username) VALUES ({ChatMember.user.id}, '{ChatMember.user.first_name}', '{ChatMember.user.last_name}', '{ChatMember.user.username}')",mode="Write")
+            #self.sql(f"INSERT OR REPLACE INTO [chat_memberships] (user, chat) VALUES ('{userid}', '{chatid}')")
         except Exception as e:
             self.logger.critical(f"Could not instantate user {ChatMember.user.username} from {chatid}: {e}")
-
-    def update_user(self, chatid, userid, message=None):
-        # Check if user needs instantiation
-        userid_from_db = self.sql(f"SELECT id FROM users WHERE id LIKE {userid}")
-        if not userid_from_db:
-            self.instantiate_user(chatid, userid)
-            return
-        # update user info
-        try:
-            ChatMember = self.get_chat_member(chatid, userid)
-            self.sql(f"UPDATE [users] set username='{ChatMember.user.username}', first_name='{ChatMember.user.first_name}', last_name='{ChatMember.user.last_name}' WHERE id = {ChatMember.user.id}", mode="Write")
-            # If this is from a message by them, update their last message
-            if not message is None and ChatMember.user.id == message.from_user.id:
-                self.sql (f"UPDATE [users] set last_message={int(time.time())}",mode="Write")
-        except Exception as e:
-            self.logger.critical(f"Could not update user index from chat {chatid}: {e}")
 
     def instantiate_chat(self,chat):
         try:
@@ -66,6 +54,30 @@ class Client(PyrogramClient):
             self.update_users(chat.id,force=True)
         except Exception as e:
             self.logger.critical(f"Could not instantiate chat info: {e}")
+        
+        # write the default filters
+        # FilterManager = FilterManager()
+        # messagefilters = []
+        # try:
+        #     self.sql(f"UPDATE [chats] set filters='{json.dumps(FilterManager.defaultfilters)}'")
+        # except Exception as e:
+        #     print(e)
+
+  # Update database objects ======================================
+    def update_user(self, chatid, userid, message=None):
+        # Check if user needs instantiation
+        if not self.sql(f"SELECT id FROM users WHERE id LIKE {userid}"):
+            self.instantiate_user(chatid, userid)
+            return
+        # update user info
+        try:
+            ChatMember = self.get_chat_member(chatid, userid)
+            self.sql(f"UPDATE [users] set username='{ChatMember.user.username}', first_name='{ChatMember.user.first_name}', last_name='{ChatMember.user.last_name}' WHERE id = {ChatMember.user.id}", mode="Write")
+            # If this is from a message by them, update their last message
+            if message is not None and ChatMember.user.id == message.from_user.id:
+                self.sql (f"UPDATE [users] set last_message={int(time.time())}",mode="Write")
+        except Exception as e:
+            self.logger.critical(f"Could not update user index from chat {chatid}: {e}")
 
     def update_chat(self,chatid):
         chat = self.get_chat(chatid)
@@ -88,3 +100,19 @@ class Client(PyrogramClient):
                 self.sql(f"UPDATE [chats] SET user_index_date={int(time.time())}", mode="Write")
             except Exception as e:
                 self.logger.critical(f"Could not update user index from chat {chatid}: {e}")
+
+  # Read from database ===========================================
+    def get_chats(self):
+        """Gets a list of chats in the database
+
+            Returns:
+                list: Array of uuids for chats
+            """
+        search = self.sql("SELECT id FROM chats WHERE id LIKE '-%'")
+        chats = []
+        for chat in search:
+            try:
+                chats.append(chat[0])
+            except:
+                pass
+        return chats
