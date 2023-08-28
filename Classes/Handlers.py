@@ -62,35 +62,35 @@ class Handlers():
         parser = ArgumentParser(description='Delete messages in this group')
 
         helpdialog = textwrap.dedent(
-        """
-        **Delete Messages in This Group**
+            """
+            **Delete Messages in This Group**
 
-        To delete a target message, reply to the message with command: `/del 1`.
+            To delete a target message, reply to the message with command: `/del 1`.
 
-        **Commands**
+            **Commands**
 
-        `/del` [-h | help] 
-        Display the __Help Dialog__.
+            `/del` [-h | help] 
+            Display the __Help Dialog__.
 
-        `/del number` (when not replying to a message)
-        Delete the specified number of messages above.
+            `/del number` (when not replying to a message)
+            Delete the specified number of messages above.
 
-        `/del` (when replying to a message)
-        Delete all messages up to and including the replied message.
+            `/del` (when replying to a message)
+            Delete all messages up to and including the replied message.
 
-        `/del number` (when replying to a message)
-        Delete the specified number of messages after, including the replied message.
+            `/del number` (when replying to a message)
+            Delete the specified number of messages after, including the replied message.
 
-        **Arguments**
+            **Arguments**
 
-        --Positional Arguments:--
-        `number`  
-        The number of messages to delete.
+            --Positional Arguments:--
+            `number`  
+            The number of messages to delete.
 
-        --Optional Arguments:--
-        `-h`, `--help`  
-        Show the help message.
-        """)
+            --Optional Arguments:--
+            `-h`, `--help`  
+            Show the help message.
+            """)
         parser.add_argument('number', type=int, nargs='?', default=None, help='The number of messages to delete')
         command = message.text.split()
         try:
@@ -201,41 +201,41 @@ class Handlers():
         parser = ArgumentParser(description='Returns the Unique identifier')
 
         helpdialog = textwrap.dedent(
-        """
-        **Show Unique IDs for users and chats**
+            """
+            **Show Unique IDs for users and chats**
 
-        **Commands**
+            **Commands**
 
-        `/id` [-h | help] 
-        Display the __Help Dialog__.
+            `/id` [-h | help] 
+            Display the __Help Dialog__.
 
-        `/id`
-        Show your own ID
+            `/id`
+            Show your own ID
 
-        `/id @user`
-        Show the ID of the user you mentioned
+            `/id @user`
+            Show the ID of the user you mentioned
 
-        `/id` (when replying to a message)
-        Show the ID of the user you replied to
+            `/id` (when replying to a message)
+            Show the ID of the user you replied to
 
-        `/id -c`
-        Show the current chat's ID.
+            `/id -c`
+            Show the current chat's ID.
 
-        `/id -m` (when replying to a message)
-        Show the ID of the message you're replying to
+            `/id -m` (when replying to a message)
+            Show the ID of the message you're replying to
 
-        **Arguments**
+            **Arguments**
 
-        --Optional Arguments:--
-        `-h`, `--help`  
-        Show the help message.
+            --Optional Arguments:--
+            `-h`, `--help`  
+            Show the help message.
 
-        `-c`, `--chat`
-        Show that chat's ID
+            `-c`, `--chat`
+            Show that chat's ID
 
-        `-m`, `--message`
-        Show the message ID, Requires that you're replying the message
-        """)
+            `-m`, `--message`
+            Show the message ID, Requires that you're replying the message
+            """)
         parser.add_argument('username', type=str, nargs='?', default=None, help='User to get the ID of')
         parser.add_argument('-c', action='store_true', help='get the chats ID')
         parser.add_argument('-m', action='store_true', help='Get the message ID')
@@ -291,6 +291,126 @@ class Handlers():
             Handler_Manager.load_handlers(bot)
         bot.send_message(message.chat.id, "Handlers reloaded")
     reload_handlers.filter = filters.command(["r","rb","restart"])
+
+  # Change logging level ============================================================================
+    def log_adjust(bot, message):
+        if not Methods.is_owner(bot, message):
+            return
+      # create argparse
+        parser = ArgumentParser(description='Adjust the logging level in the bot')
+        helpdialog = textwrap.dedent(
+            """
+            **Set the logging level**
+
+            **Commands**
+
+            `/log` [-h | help] 
+            Display the __Help Dialog__.
+
+            `/id -c`
+            Sets the logging level to CRITICAL
+
+            `/id -w`
+            Sets the logging level to WARNING
+
+            `/id -e`
+            Sets the logging level to ERROR
+
+            `/id -i`
+            Sets the logging level to INFO
+
+            `/id -d`
+            Sets the logging level to DEBUG
+
+            `/id -f`
+            Sets the logging level For the log file
+
+            `/id -s`
+            Sets the logging level for Stdout
+
+            `/id -t`
+            Sends a test of the logs available and sends a message of the current level
+            """)
+        parser.add_argument('-c', action='store_true', help='CRITICAL')
+        parser.add_argument('-w', action='store_true', help='WARNING')
+        parser.add_argument('-e', action='store_true', help='ERROR')
+        parser.add_argument('-i', action='store_true', help='INFO')
+        parser.add_argument('-d', action='store_true', help='DEBUG')
+        parser.add_argument('-f', action='store_true', help='Sets Filehandler Level')
+        parser.add_argument('-s', action='store_true', help='Sets stdout Level')
+        parser.add_argument('-g', action='store_true', help='Sets the global log level')
+        parser.add_argument('-t', action='store_true', help='Test the log')
+        command = message.text.split()
+        try:
+            args = parser.parse_args(command[1:])
+        except Exception as e:
+            bot.send_message(message.chat.id, f"Invalid Argument\n{helpdialog}")
+      # Test logging level
+        if args.t:
+            bot.logger.critical("critical")
+            bot.logger.warning("warning")
+            bot.logger.error("error")
+            bot.logger.info("info")
+            bot.logger.debug("debug")
+            return
+      # Stdout level
+        if args.s:
+            if args.c:
+                bot.stdout_handler.setLevel(logging.CRITICAL)
+                bot.send_message(message.chat.id,"Logging set to critical")
+            elif args.w:
+                bot.stdout_handler.setLevel(logging.WARNING)
+                bot.send_message(message.chat.id,"Logging set to warning")
+            elif args.e:
+                bot.stdout_handler.setLevel(logging.ERROR)
+                bot.send_message(message.chat.id,"Logging set to error")
+            elif args.i:
+                bot.stdout_handler.setLevel(logging.INFO)
+                bot.send_message(message.chat.id,"Logging set to info")
+            elif args.d:
+                bot.stdout_handler.setLevel(logging.DEBUG)
+                bot.send_message(message.chat.id,"Logging set to debug")
+            else:
+                bot.send_message(message.chat.id,message.chat.id, helpdialog)
+      # File level
+        if args.f:
+            if args.c:
+                bot.file_handler.setLevel(logging.CRITICAL)
+                bot.send_message(message.chat.id,"Logging set to critical")
+            elif args.w:
+                bot.file_handler.setLevel(logging.WARNING)
+                bot.send_message(message.chat.id,"Logging set to warning")
+            elif args.e:
+                bot.file_handler.setLevel(logging.ERROR)
+                bot.send_message(message.chat.id,"Logging set to error")
+            elif args.i:
+                bot.file_handler.setLevel(logging.INFO)
+                bot.send_message(message.chat.id,"Logging set to info")
+            elif args.d:
+                bot.file_handler.setLevel(logging.DEBUG)
+                bot.send_message(message.chat.id,"Logging set to debug")
+            else:
+                bot.send_message(message.chat.id,message.chat.id, helpdialog)
+      # Global level
+        if args.g:
+            if args.c:
+                bot.logger.setLevel(logging.CRITICAL)
+                bot.send_message(message.chat.id,"Logging set to critical")
+            elif args.w:
+                bot.logger.setLevel(logging.WARNING)
+                bot.send_message(message.chat.id,"Logging set to warning")
+            elif args.e:
+                bot.logger.setLevel(logging.ERROR)
+                bot.send_message(message.chat.id,"Logging set to error")
+            elif args.i:
+                bot.logger.setLevel(logging.INFO)
+                bot.send_message(message.chat.id,"Logging set to info")
+            elif args.d:
+                bot.logger.setLevel(logging.DEBUG)
+                bot.send_message(message.chat.id,"Logging set to debug")
+            else:
+                bot.send_message(message.chat.id,message.chat.id, helpdialog)
+    log_adjust.filter = filters.command(["log", "l"])
 
   # test handler ====================================================================================
     def test_handler(bot, message):
