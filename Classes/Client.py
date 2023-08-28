@@ -16,12 +16,10 @@ class Client(PyrogramClient):
         self.logger.setLevel(logging.DEBUG)
         # Stdout Logger
         self.stdout_handler = logging.StreamHandler()
-        self.stdout_handler.setLevel(logging.DEBUG)
         self.logger.addHandler(self.stdout_handler)
         self.stdout_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
         # File logs
         self.file_handler = logging.FileHandler('Vampyre.log')
-        self.file_handler.setLevel(logging.DEBUG)
         self.logger.addHandler(self.file_handler)
         self.file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
         
