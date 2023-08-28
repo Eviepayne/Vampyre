@@ -1,0 +1,3 @@
+jurigged
+Pyrogram
+tgcrypto
