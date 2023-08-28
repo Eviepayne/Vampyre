@@ -1,13 +1,17 @@
-import sqlite3, os, logging, time, threading, textwrap # Threading is here so callback cleanups don't have issues handling 2 threads
+import sqlite3, os, logging, time, threading, textwrap, jurigged # Threading is here so callback cleanups don't have issues handling 2 threads
 from pyrogram import filters, enums, types
 from Classes.Keyboard import Keyboard
 from Classes.ArgparseOverride import ArgumentParser
 from Classes.HandlerManager import HandlerManager
 from Classes.Methods import Methods
 
+# These globals are volatile and unimportant. 
+# They are only modified in the allmessages handler
+
 lastupdate = {}
 lastusersindex = {}
 handler_lock = threading.Lock()
+update_lock = threading.Lock()
 
 class Handlers():
 
@@ -275,9 +279,22 @@ class Handlers():
             bot.send_message(message.chat.id, f"User's ID: {user.id}")
     get_user_id.filter = filters.command(["id", "i", "getid"])
 
+  # Reload handlers =================================================================================
+    def reload_handlers(bot, message):
+        if not Methods.is_owner(bot, message):
+            bot.logger.debug(f"User: type: {message.from_user.id} Owner: type: {bot.bot_owner}" )
+            return
+        bot.logger.info("Reloading Handlers")
+        Handler_Manager = HandlerManager()
+        with handler_lock:
+            Handler_Manager.unload_handlers(bot)
+            Handler_Manager.load_handlers(bot)
+        bot.send_message(message.chat.id, "Handlers reloaded")
+    reload_handlers.filter = filters.command(["r","rb","restart"])
+
   # test handler ====================================================================================
     def test_handler(bot, message):
-        bot.delete_messages(message.chat.id, message.id)
+        bot.send_message(message.chat.id, "New Message") # Original Message
     test_handler.filter = filters.command(["t", "test"])
 
   # allmessages =====================================================================================
@@ -286,19 +303,20 @@ class Handlers():
         This method is called on ALL messages
         It should be as light as possible to prevent overloading the bot
         """
-        global lastupdate
-        global lastusersindex
-        now = int(time.time())
+        with update_lock:
+            global lastupdate
+            global lastusersindex
+            now = int(time.time())
 
-        # update user info
-        if now - lastupdate.get(message.from_user.id, 0) > 300:
-            bot.update_user(message.chat.id, message.from_user.id)
-            lastupdate.update({message.from_user.id: now})
+            # update user info
+            if now - lastupdate.get(message.from_user.id, 0) > 300:
+                bot.update_user(message.chat.id, message.from_user.id)
+                lastupdate.update({message.from_user.id: now})
 
-        # update chat info
-        if now - lastupdate.get(message.chat.id, 0) > 300:
-            bot.update_chat(message.chat.id)
-            lastupdate.update({message.chat.id: now})
+            # update chat info
+            if now - lastupdate.get(message.chat.id, 0) > 300:
+                bot.update_chat(message.chat.id)
+                lastupdate.update({message.chat.id: now})
 
-        # update user index
-        bot.update_users(message.chat.id)
+            # update user index
+            bot.update_users(message.chat.id)

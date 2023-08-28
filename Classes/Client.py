@@ -2,7 +2,7 @@ import sqlite3, os, logging, time, json
 from pyrogram import Client as PyrogramClient
 from pyrogram import errors, enums
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+#logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 class Client(PyrogramClient):
 
@@ -10,31 +10,54 @@ class Client(PyrogramClient):
         super().__init__(*args, **kwargs)
         self.db_name = f"{self.name}.db"
         self.db_path = os.path.join("data", self.db_name)
+        self.bot_owner = bot_owner
+        # Root Logging
         self.logger = logging.getLogger('Vampyre')
+        self.logger.setLevel(logging.DEBUG)
+        # Stdout Logger
+        self.stdout_handler = logging.StreamHandler()
+        self.stdout_handler.setLevel(logging.DEBUG)
+        self.logger.addHandler(self.stdout_handler)
+        self.stdout_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        # File logs
         self.file_handler = logging.FileHandler('Vampyre.log')
+        self.file_handler.setLevel(logging.DEBUG)
         self.logger.addHandler(self.file_handler)
         self.file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-        self.bot_owner = bot_owner
         
  # Access database ===============================================
     def sql(self, query, mode=None):
+        if mode is None:
+            mode = "Read"
+        else:
+            mode = "Write"
+        self.logger.debug(f"Connecting to DB in {mode} mode")
         self.connection = sqlite3.connect(self.db_path)
         self.cursor = self.connection.cursor()
+        self.logger.debug(f"Executing Query: {query}")
         self.cursor.execute(query)
-        if mode is None:
+        if mode == "Read":
             output = self.cursor.fetchall()
+            self.logger.debug(f"Retrieved output: {output}")
         if mode == "Write":
             self.connection.commit()
+            self.logger.debug(f"Query Written")
         self.cursor.close()
         self.connection.close()
-        if mode == None:
+        self.logger.debug(f"Connection Closed")
+        if mode == "Read":
+            self.logger.debug(f"Returning output")
             return output
 
   # Instantiate database objects =================================
     def initialize_database(self):
+        self.logger.debug("Creating Database")
         try:
+            self.logger.debug("Creating chats table")
             self.sql("CREATE TABLE chats (id INTEGER, 'type' TEXT, title TEXT, username TEXT, first_name TEXT, last_name TEXT, bio TEXT, description TEXT, invite_link TEXT, filters TEXT, user_index_date INTEGER, chat_auth INTEGER, CONSTRAINT chats_PK PRIMARY KEY (id))", mode="Write")
+            self.logger.debug("Creating users table")
             self.sql("CREATE TABLE users (id INTEGER, first_name TEXT, last_name TEXT, username TEXT, last_message INTEGER, universal_ban INTEGER, is_bot_owner INTEGER, universal_mute INTEGER, CONSTRAINT users_PK PRIMARY KEY (id))", mode="Write")
+            self.logger.debug("Creating chat memberships table")
             self.sql("CREATE TABLE chat_memberships ('user' INTEGER, chat INTEGER, CONSTRAINT chat_memberships_PK PRIMARY KEY ('user', chat), CONSTRAINT chat_memberships_FK FOREIGN KEY ('user') REFERENCES users(id), CONSTRAINT chat_memberships_FK_1 FOREIGN KEY (chat) REFERENCES chats(id))", mode="Write")
         except Exception as e:
             self.logger.critical(f"Could not create database: {e}")

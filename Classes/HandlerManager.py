@@ -1,4 +1,4 @@
-import uuid, importlib, inspect, sys
+import uuid, importlib, inspect, sys, logging, Classes
 from pyrogram.handlers import CallbackQueryHandler, MessageHandler
 from pyrogram import filters
 
@@ -18,42 +18,54 @@ class HandlerManager:
             ]
         return cls._instance
 
- # Meta logic to reload python modules and new code ==============
-    # Python reload modules
-    def reload_module(self, module_name):
-        if module_name in sys.modules:
-            print("Unloading Class")
-            del sys.modules[module_name]
-            print("loading Class")
-        return importlib.import_module(module_name)
+ # Unloads and loads all Handlers ================================
 
-    def reload_and_create_handlers(self, bot):
-        # Reload Handlers class
-        reloaded_module = self.reload_module("Classes.Handlers")
-        print("Class Loaded")
-        print("Loading Handlers attributes")
-        ReloadedHandlers = getattr(reloaded_module, "Handlers")
-        
-        # Get methods from class
-        print("Loading methods for handlers")
-        methods = [method for name, method in inspect.getmembers(ReloadedHandlers, inspect.isfunction) if name != '__init__']
+    def unload_handlers(self, bot):
+        """Unloads all handlers
 
+        Args:
+            bot (client): bot object passed from message handler
+        """
+        bot.logger.info("Unloading Handlers")
+        logger = logging.getLogger("Vampyre.unload_handlers")
+        logger.debug("Getting all handlers from handlermanager")
+        guids = [guid for guid in self.handlers]
+        logger.debug("Cleaning up handlers from handlermanager")
+        for guid in guids:
+            handler = self.get_handler(guid)
+            logger.debug(f"Destroying Handler - guid: {guid} | handler: {handler}")
+            self.DestroyMessage(bot, guid, handler)
+
+    def load_handlers(self, bot):
+        """Loads all handlers from Handlers class
+
+        Args:
+            bot (client): bot object passed from message handler
+        """
+        bot.logger.info("Loading Handlers")
+        logger = logging.getLogger("Vampyre.reload_and_create_handlers")
+        logger.debug("Getting all methods from the Handlers Class")
+        methods = [method for name, method in inspect.getmembers(Classes.Handlers.Handlers, inspect.isfunction) if name != '__init__']
+        logger.debug("Creating New Handlers")
         for method in methods:
-            # gets the filter attribute
             method_filter = getattr(method, 'filter', None)
-            print("Creating Handlers")
             if method_filter:
+                # may want to expand on this to load more handlers than just message handlers
+                # We can add a method attribute for the type of handler it is so we can properly assign the handler type
                 self.CreateMessage(bot, method, method_filter)
-        print("Done loading new code")
+                logger.debug(f"Handler loaded for: {method}")
+        logger.debug("All Handlers Loaded")
 
  # Manage Handlers ===============================================
-    def add_handler(self, guid, handler, data=None):
+    def store_handler(self, guid, handler, data=None):
         """Stores Handler for later use
         Args:
             guid (String): Global Unique Identifier, generate from str(uuid.uuid4())
             handler (Handler): Returned from bot.add_handler
             data (Dict): All data stored in the handler from kwargs 
         """
+        logger = logging.getLogger("Vampyre.store_handler")
+        logger.debug("Storing handler and Data")
         self.handlers[guid] = handler
         self.data_store[guid] = data
 
@@ -66,6 +78,8 @@ class HandlerManager:
         Returns:
             Handler: Handler
         """
+        logger = logging.getLogger("Vampyre.get_handler")
+        logger.debug("Returning Handler")
         return self.handlers.get(guid)
 
     def get_data(self, guid):
@@ -77,14 +91,18 @@ class HandlerManager:
         Returns:
             dict: kwargs
         """
+        logger = logging.getLogger("Vampyre.get_data")
+        logger.debug("Returning data related to handler")
         return self.data_store.get(guid)
     
-    def remove_handler(self, guid):
+    def unregister_handler(self, guid):
         """Removes a handler
 
         Args:
             guid (Str): Global unique identifier for a related Handler
         """
+        logger = logging.getLogger("Vampyre.unregister_handler")
+        logger.debug("Removing handler")
         self.handlers.pop(guid, None)
         self.data_store.pop(guid, None)
 
@@ -100,9 +118,13 @@ class HandlerManager:
         Returns:
             guid: Global unique identifier for a related Callback
         """
+        logger = logging.getLogger("Vampyre.CreateCallback")
+        logger.debug("Generating GUID")
         guid = str(uuid.uuid4())
+        logger.debug("Creating Callback Handler")
         callbackhandler = bot.add_handler(CallbackQueryHandler(function, filters.regex(rf"{guid}")))
-        self.add_handler(guid, callbackhandler, kwargs)
+        logger.debug("Storing Callback Handler")
+        self.store_handler(guid, callbackhandler, kwargs)
         return guid
 
     def ReadCallback(self, guid):
@@ -114,8 +136,12 @@ class HandlerManager:
         Returns:
             dict: kwargs
         """
+        logger = logging.getLogger("Vampyre.ReadCallback")
+        logger.debug("Grabbing handler Data")
         data = self.get_data(guid)
+        logger.debug("Grabbing handler Guid")
         handler = self.get_handler(guid)
+        logger.debug("Returning Data and Handler")
         return data, handler
     
     def DestroyCallback(self, bot, guid, handler):
@@ -126,7 +152,10 @@ class HandlerManager:
             guid (Str): Global unique identifier for a related Callback
             handler (Handler): The Handler Object to be destroyed
         """
-        self.remove_handler(guid)
+        logger = logging.getLogger("Vampyre.DestroyCallback")
+        logger.debug("Deleting from handler store")
+        self.unregister_handler(guid)
+        logger.debug("Removing handler")
         bot.remove_handler(*handler)
 
  # Message Handlers ==============================================
@@ -140,11 +169,15 @@ class HandlerManager:
             messagefilter (filter): A filter from the pyrogram.filters module
 
         Returns:
-            _type_: _description_
+            string: guid
         """
+        logger = logging.getLogger("Vampyre.CreateMessage")
+        logger.debug("Generating GUID")
         guid = str(uuid.uuid4())
+        logger.debug("Creating Handler")
         messagehandler = bot.add_handler(MessageHandler(function, messagefilter))
-        self.add_handler(guid, messagehandler, kwargs)
+        logger.debug("Storing Handler")
+        self.store_handler(guid, messagehandler, kwargs)
         return guid
     
     def ReadMessage(self, guid):
@@ -156,8 +189,12 @@ class HandlerManager:
         Returns:
             dict: kwargs
         """
+        logger = logging.getLogger("Vampyre.ReadMessage")
+        logger.debug("Getting Data")
         data = self.get_data(guid)
+        logger.debug("Getting Handler")
         handler = self.get_handler(guid)
+        logger.debug("returning Data and Handler")
         return data, handler
     
     def DestroyMessage(self, bot, guid, handler):
@@ -168,11 +205,14 @@ class HandlerManager:
             guid (Str): Global unique identifier for a related Message
             handler (Handler): The Handler Object to be destroyed
         """
-        self.remove_handler(guid)
+        logger = logging.getLogger("Vampyre.DestroyMessage")
+        logger.debug("Deleting from handler store")
+        self.unregister_handler(guid)
+        logger.debug("Removing handler")
         bot.remove_handler(*handler)
 
  # Filter Handlers ===============================================
-    # # Filter handlers should be in group -100
+    # Filter handlers should be in group -100
 
     # @classmethod
     # def updatefilters(bot, message=None):
@@ -192,23 +232,23 @@ class HandlerManager:
 
     # @classmethod
     # def loadfilters(bot, message=None):
-        if message is not None and not bot.is_admin(message.chat.id, message.from_user.id):
-            return
-        chats = bot.get_chats()
-        print(chats)
-        for chat in chats:
-            try:
-                print(chat)
-                messagefilters = bot.sql(f"SELECT filters FROM [chats] WHERE id = '{chat}'")
-                print(messagefilters)
-                return
-                filterlist = json.loads(y[0][0])
-                try:
-                    for f in filterlist:
-                        filterhandlers.append(bot.add_handler(MessageHandler(filtermsg, filters.regex(f[1]) & filters.chat(i)), group=-1))
-                except Exception as e:
-                    print(e)
-                    continue
-            except Exception as e:
-                print(e)
-                continue
+    #     if message is not None and not bot.is_admin(message.chat.id, message.from_user.id):
+    #         return
+    #     chats = bot.get_chats()
+    #     print(chats)
+    #     for chat in chats:
+    #         try:
+    #             print(chat)
+    #             messagefilters = bot.sql(f"SELECT filters FROM [chats] WHERE id = '{chat}'")
+    #             print(messagefilters)
+    #             return
+    #             filterlist = json.loads(y[0][0])
+    #             try:
+    #                 for f in filterlist:
+    #                     filterhandlers.append(bot.add_handler(MessageHandler(filtermsg, filters.regex(f[1]) & filters.chat(i)), group=-1))
+    #             except Exception as e:
+    #                 print(e)
+    #                 continue
+    #         except Exception as e:
+    #             print(e)
+    #             continue
