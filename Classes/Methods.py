@@ -1,4 +1,5 @@
 from pyrogram import enums
+import logging
 class Methods():
     def __init__(self):
         pass
@@ -23,4 +24,12 @@ class Methods():
             return False
         
         if ChatMember.status == enums.ChatMemberStatus.ADMINISTRATOR or ChatMember.status == enums.ChatMemberStatus.OWNER:
+            return True
+
+  # is_owner ========================================================================================
+    def is_owner(bot, message):
+        logger = logging.getLogger("Vampyre.is_owner")
+        logger.debug(f"Message.from_user.id: {message.from_user.id} bot.owner:{bot.bot_owner}")
+        if str(message.from_user.id) == bot.bot_owner:
+            logger.debug(f"User is owner")
             return True
