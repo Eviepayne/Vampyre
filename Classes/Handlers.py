@@ -294,6 +294,7 @@ class Handlers():
             Handler_Manager.load_filters(bot)
         bot.send_message(message.chat.id, "Handlers/Filters reloaded")
     reload_handlers.filter = filters.command(["r","rb","restart"])
+
   # Change logging level ============================================================================
     def log_adjust(bot, message):
         if not Methods.is_owner(bot, message):
@@ -309,28 +310,28 @@ class Handlers():
             `/log` [-h | help] 
             Display the __Help Dialog__.
 
-            `/id -c`
+            `/log -c`
             Sets the logging level to CRITICAL
 
-            `/id -w`
+            `/log -w`
             Sets the logging level to WARNING
 
-            `/id -e`
+            `/log -e`
             Sets the logging level to ERROR
 
-            `/id -i`
+            `/log -i`
             Sets the logging level to INFO
 
-            `/id -d`
+            `/log -d`
             Sets the logging level to DEBUG
 
-            `/id -f`
+            `/log -f`
             Sets the logging level For the log file
 
-            `/id -s`
+            `/log -s`
             Sets the logging level for Stdout
 
-            `/id -t`
+            `/log -t`
             Sends a test of the logs available and sends a message of the current level
             """)
         parser.add_argument('-c', action='store_true', help='CRITICAL')
