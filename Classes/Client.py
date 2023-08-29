@@ -22,6 +22,13 @@ class Client(PyrogramClient):
         self.file_handler = logging.FileHandler('Vampyre.log')
         self.logger.addHandler(self.file_handler)
         self.file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        # DefaultFilters
+        self.LinkFilter = r'(?i)(h\s*t\s*t\s*p)|(h\s*\w\s*\w\s*p\:)|(h\s*\w\s*\w\s*p\s*s\:)|(\:\s*\/\s*\/)|(w\s*w\s*w\s*\.)|(w\s*w\s*w\s*d\s*o\s*t)|(\.\s*g\s*g)|(g\s*g\s*\/)|(d\s*o\s*t\s*g\s*g)|(\.\s*c\s*o\s*m)|(c\s*o\s*m\s*\/)|(d\s*o\s*t\s*c\s*o\s*m)|(\.\s*x\s*y\s*z)|(x\s*y\s*z\s*\/)|(d\s*o\s*t\s*x\s*y\s*z)|(\.\s*n\s*z)|(\s+n\s*z\s+)|(\s*n\s*z\s*\/)|(d\s*o\s*t\s*n\s*z)|(\.\s*t\s*v)|(\s*t\s*v\s*\/)|(d\s*o\s*t\s*t\s*v)|(\.\s*o\s*r\s*g)|(\s*o\s*r\s*g\s*\/)|(d\s*o\s*t\s*o\s*r\s*g)|(v\s*m\s*\.\s*t\s*i\s*k\s*t\s*o\s*k)'
+        self.invitefilter = r'(?i)(t\s*\.m\s*e)|(t\s*d\s*o\s*t\s*m\s*e)|(t\s*m\s*e\s*\/)|(\/\s*j\s*o\s*i\s*n\s*c\s*h\s*a\s*t\s*\/)(.{16})|(^\/.{16}$)|(^.{16}\/$)'
+        self.defaultfilters =[
+        ("LinkFilter",self.LinkFilter,{"delete":0,"notify":0,},1),
+        ("InviteFilter",self.invitefilter,{"delete":0,"notify":0,},1)
+        ]
         
  # Access database ===============================================
     def sql(self, query, mode=None):
@@ -69,20 +76,18 @@ class Client(PyrogramClient):
         except Exception as e:
             self.logger.critical(f"Could not instantate user {ChatMember.user.username} from {chatid}: {e}")
 
-    def instantiate_chat(self,chat):
+    def instantiate_chat(self,chat): # TODO - When new filters are introduced, instantiate new filters
         try:
-            self.sql(f"INSERT OR REPLACE INTO [chats] (id, type, title, username, first_name, last_name, bio, description, invite_link, user_index_date) VALUES ({chat.id}, '{chat.type}', '{chat.title}', '{chat.username}', '{chat.first_name}', '{chat.last_name}', '{chat.bio}', '{chat.description}', '{chat.invite_link}', 1)", mode="Write")
-            self.update_users(chat.id,force=True)
+            self.sql(f"INSERT OR REPLACE INTO [chats] (id, type, title, username, first_name, last_name, bio, description, invite_link, user_index_date, filters) VALUES ({chat.id}, '{chat.type}', '{chat.title}', '{chat.username}', '{chat.first_name}', '{chat.last_name}', '{chat.bio}', '{chat.description}', '{chat.invite_link}', 1, '{json.dumps(self.defaultfilters)}')", mode="Write")
+            self.update_users(chat.id, force=True)
         except Exception as e:
             self.logger.critical(f"Could not instantiate chat info: {e}")
         
-        # write the default filters
-        # FilterManager = FilterManager()
-        # messagefilters = []
-        # try:
-        #     self.sql(f"UPDATE [chats] set filters='{json.dumps(FilterManager.defaultfilters)}'")
-        # except Exception as e:
-        #     print(e)
+    def instantiate_filters(self,chatid): # TODO - parse existing filters, overwrite default filters
+        try:
+            self.sql(f"UPDATE [chats] set filters='{json.dumps(self.defaultfilters)} WHERE id = {chatid}'")
+        except Exception as e:
+            self.send_message(chatid, f"Failed to instantiate chat filters: {e}")
 
   # Update database objects ======================================
     def update_user(self, chatid, userid, message=None):
@@ -121,6 +126,19 @@ class Client(PyrogramClient):
                 self.sql(f"UPDATE [chats] SET user_index_date={int(time.time())}", mode="Write")
             except Exception as e:
                 self.logger.critical(f"Could not update user index from chat {chatid}: {e}")
+    
+    def update_filters(self, chatid, filters):
+        try:
+            chat_filter_raw = self.sql(f"SELECT filters FROM chats WHERE id LIKE {chatid}")
+        except Exception as e:
+            self.send_message(chatid, f"Failed to Get the chat filters: {e}")
+        chat_filters = json.loads(chat_filter_raw[0][0])
+        for f in filters:
+            chat_filters.append(f)
+        try:
+            self.sql(f"UPDATE [chats] set filters='{json.dumps(chat_filters)} WHERE id = {chatid}'")
+        except Exception as e:
+            self.send_message(chatid, f"Failed to update chat filters: {e}")
 
   # Read from database ===========================================
     def get_chats(self):
@@ -137,3 +155,12 @@ class Client(PyrogramClient):
             except:
                 pass
         return chats
+    
+    def get_filters(self, chatid):
+        try:
+            query = self.sql(f"SELECT filters FROM [chats] WHERE id = '{chatid}'")
+            filters = json.loads(query[0][0])
+            self.logger.debug(filters)
+            return filters
+        except Exception as e:
+            self.send_message(chatid, f"Failed to read chat filters: {e}")
