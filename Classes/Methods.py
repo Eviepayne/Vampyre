@@ -5,7 +5,7 @@ class Methods():
         pass
     
   # is_admin ========================================================================================
-    def is_admin(bot, chatid, userid):
+    def is_admin(bot, message):
         """Check if a user in a chat is an admin/owner
 
         Args:
@@ -16,8 +16,11 @@ class Methods():
         Returns:
             Bool: True/False
         """
+        if Methods.is_owner(bot, message):
+            return True
+
         try:
-            ChatMember = bot.get_chat_member(chatid, userid)
+            ChatMember = bot.get_chat_member(message.chat.id, message.chat.from_user.id)
 
         except errors.FloodWait as e:
             bot.send_message(chatid, "We are being rate limited. Please wait.")

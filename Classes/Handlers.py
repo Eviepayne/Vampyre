@@ -1,4 +1,4 @@
-import sqlite3, os, logging, time, threading, textwrap, jurigged # Threading is here so callback cleanups don't have issues handling 2 threads
+import sqlite3, os, logging, time, threading, textwrap, re, jurigged # Threading is here so callback cleanups don't have issues handling 2 threads
 from pyrogram import filters, enums, types
 from Classes.Keyboard import Keyboard
 from Classes.ArgparseOverride import ArgumentParser
@@ -9,6 +9,7 @@ from Classes.Methods import Methods
 # They are only modified in the allmessages handler
 
 lastupdate = {}
+lastfilterupdate = {}
 lastusersindex = {}
 handler_lock = threading.Lock()
 update_lock = threading.Lock()
@@ -28,7 +29,7 @@ class Handlers():
         """
         Handler_Manager = HandlerManager()
      # Handle CallbackQueries
-        if type(message) is types.CallbackQuery and not Methods.is_admin(bot, message.message.chat.id, message.from_user.id):
+        if type(message) is types.CallbackQuery and not Methods.is_admin(bot, message):
             return
         elif type(message) is types.CallbackQuery:
             callback_actions = {button.text: button.callback_data for row in message.message.reply_markup.inline_keyboard for button in row if hasattr(button, 'text') and hasattr(button, 'callback_data')}
@@ -54,7 +55,7 @@ class Handlers():
         bot.delete_messages(message.chat.id, message.id)
 
      # Return if not admin
-        if not Methods.is_admin(bot, message.chat.id, message.from_user.id):
+        if not Methods.is_admin(bot, message):
             bot.delete_messages(message.chat.id, message.id)
             return
 
@@ -284,14 +285,15 @@ class Handlers():
         if not Methods.is_owner(bot, message):
             bot.logger.debug(f"User: type: {message.from_user.id} Owner: type: {bot.bot_owner}" )
             return
-        bot.logger.info("Reloading Handlers")
+        bot.logger.info("Reloading Handlers/Filters")
         Handler_Manager = HandlerManager()
         with handler_lock:
             Handler_Manager.unload_handlers(bot)
             Handler_Manager.load_handlers(bot)
-        bot.send_message(message.chat.id, "Handlers reloaded")
+            Handler_Manager.unload_filters(bot)
+            Handler_Manager.load_filters(bot)
+        bot.send_message(message.chat.id, "Handlers/Filters reloaded")
     reload_handlers.filter = filters.command(["r","rb","restart"])
-
   # Change logging level ============================================================================
     def log_adjust(bot, message):
         if not Methods.is_owner(bot, message):
@@ -414,7 +416,9 @@ class Handlers():
 
   # test handler ====================================================================================
     def test_handler(bot, message):
-        bot.send_message(message.chat.id, "New Message") # Original Message
+        dialogs = bot.get_dialogs()
+        for dialog in dialogs:
+            print(dialog)
     test_handler.filter = filters.command(["t", "test"])
 
   # allmessages =====================================================================================
@@ -424,6 +428,7 @@ class Handlers():
         It should be as light as possible to prevent overloading the bot
         """
         with update_lock:
+            Handler_Manager = HandlerManager()
             global lastupdate
             global lastusersindex
             now = int(time.time())
