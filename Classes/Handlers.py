@@ -121,7 +121,6 @@ class Handlers():
                 if currentmessage.empty:
                     sanitycheck += 1
                     if sanitycheck == 1000:
-                        # TODO - Benchmark the sanity check to ensure we aren't waiting too long
                         break
                     targetmessageid -= 1
                     currentmessageid -= 1
@@ -423,11 +422,11 @@ class Handlers():
     test_handler.filter = filters.command(["t", "test"])
 
   # allmessages =====================================================================================
+    
+    # NOTE You can't merge these, the objects are not the same
+
     def all_messages(bot, message):
-        """
-        This method is called on ALL messages
-        It should be as light as possible to prevent overloading the bot
-        """
+        bot.logger.debug(f"Running update: {message}")
         with update_lock:
             Handler_Manager = HandlerManager()
             global lastupdate
@@ -446,3 +445,21 @@ class Handlers():
 
             # update user index
             bot.update_users(message.chat.id)
+
+    def all_chatmemberupdates(bot, ChatMemberUpdated):
+        bot.logger.debug(f"Running update: {ChatMemberUpdated}")
+        with update_lock:
+            Handler_Manager = HandlerManager()
+            global lastupdate
+            global lastusersindex
+            now = int(time.time())
+
+            # update user info
+            if now - lastupdate.get(ChatMemberUpdated.from_user.id, 0) > 300:
+                bot.update_user(ChatMemberUpdated.chat.id, ChatMemberUpdated.from_user.id)
+                lastupdate.update({ChatMemberUpdated.from_user.id: now})
+
+            # update chat info
+            if now - lastupdate.get(ChatMemberUpdated.chat.id, 0) > 300:
+                bot.update_chat(ChatMemberUpdated.chat.id)
+                lastupdate.update({ChatMemberUpdated.chat.id: now})
