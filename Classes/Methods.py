@@ -1,4 +1,4 @@
-from pyrogram import enums
+from pyrogram import enums, errors
 import logging
 class Methods():
     def __init__(self):
@@ -16,18 +16,21 @@ class Methods():
         Returns:
             Bool: True/False
         """
+        logger = logging.getLogger("Vampyre.is_admin")
         if Methods.is_owner(bot, message):
             return True
-
+        logger.debug(f"Message.from_user.id: {message.from_user.id}")
         try:
-            ChatMember = bot.get_chat_member(message.chat.id, message.chat.from_user.id)
-
-        except errors.FloodWait as e:
-            bot.send_message(chatid, "We are being rate limited. Please wait.")
+            logger.debug(f"Getting chatmember object")
+            ChatMember = bot.get_chat_member(message.chat.id, message.from_user.id)
+        except Exception as e: # TODO - Properly handle floods if we trigger any
+            send_message(chatid, "We are being rate limited. Try again later.")
             return False
         
         if ChatMember.status == enums.ChatMemberStatus.ADMINISTRATOR or ChatMember.status == enums.ChatMemberStatus.OWNER:
+            logger.debug("User is admin")
             return True
+        logger.debug("User is not admin")
 
   # is_owner ========================================================================================
     def is_owner(bot, message):
@@ -36,3 +39,4 @@ class Methods():
         if str(message.from_user.id) == bot.bot_owner:
             logger.debug(f"User is owner")
             return True
+        logger.debug(f"User is not owner")
