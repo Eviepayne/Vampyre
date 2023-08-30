@@ -25,6 +25,9 @@ config.read('config.ini')
 
 # Instantiate bot
 bot = Client(
+    flog = config.get('bot', 'flog'),
+    slog = config.get('bot', 'slog'),
+    glog = config.get('bot', 'glog'),
     name = config.get('bot', 'app_name'),
     api_id = config.get('bot', 'api_id'),
     api_hash = config.get('bot', 'api_hash'),
@@ -32,10 +35,6 @@ bot = Client(
     bot_owner = config.get('bot', 'bot_owner'),
     app_version = config.get('bot', 'app_version')
     )
-
-# Setup Logging
-bot.stdout_handler.setLevel(logging.DEBUG)
-bot.file_handler.setLevel(logging.DEBUG)
 
 # Initialize data base
 if not os.path.exists(os.path.join(bot.db_path)):
