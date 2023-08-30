@@ -281,9 +281,15 @@ class Handlers():
 
   # Reload handlers =================================================================================
     def reload_handlers(bot, message):
+        # Delete original message
+        bot.delete_messages(message.chat.id, message.id)
+
+        # Check if user is owner
         if not Methods.is_owner(bot, message):
             bot.logger.debug(f"User: type: {message.from_user.id} Owner: type: {bot.bot_owner}" )
             return
+        
+        # Unload and reload handlers/filters
         bot.logger.info("Reloading Handlers/Filters")
         Handler_Manager = HandlerManager()
         with handler_lock:
@@ -296,13 +302,25 @@ class Handlers():
 
   # Change logging level ============================================================================
     def log_adjust(bot, message):
+       # Delete original message
+        bot.delete_messages(message.chat.id, message.id)
+
+       # Check if owner
         if not Methods.is_owner(bot, message):
             return
-      # create argparse
+
+       # create argparse
         parser = ArgumentParser(description='Adjust the logging level in the bot')
         helpdialog = textwrap.dedent(
             """
             **Set the logging level**
+            **Examples**
+            
+            `/log -gfsd`
+            Reset all logging to debug
+
+            `/log -fsi`
+            Set file and stdout logs to info
 
             **Commands**
 
@@ -347,7 +365,8 @@ class Handlers():
             args = parser.parse_args(command[1:])
         except Exception as e:
             bot.send_message(message.chat.id, f"Invalid Argument\n{helpdialog}")
-      # Test logging level
+       
+       # Test logging level
         if args.t:
             bot.logger.critical("critical")
             bot.logger.warning("warning")
@@ -355,7 +374,8 @@ class Handlers():
             bot.logger.info("info")
             bot.logger.debug("debug")
             return
-      # Stdout level
+
+       # Stdout level
         if args.s:
             if args.c:
                 bot.stdout_handler.setLevel(logging.CRITICAL)
@@ -374,7 +394,8 @@ class Handlers():
                 bot.send_message(message.chat.id,"Logging set to debug")
             else:
                 bot.send_message(message.chat.id,message.chat.id, helpdialog)
-      # File level
+      
+       # File level
         if args.f:
             if args.c:
                 bot.file_handler.setLevel(logging.CRITICAL)
@@ -393,7 +414,8 @@ class Handlers():
                 bot.send_message(message.chat.id,"Logging set to debug")
             else:
                 bot.send_message(message.chat.id,message.chat.id, helpdialog)
-      # Global level
+       
+       # Global level
         if args.g:
             if args.c:
                 bot.logger.setLevel(logging.CRITICAL)
@@ -412,14 +434,13 @@ class Handlers():
                 bot.send_message(message.chat.id,"Logging set to debug")
             else:
                 bot.send_message(message.chat.id,message.chat.id, helpdialog)
+
     log_adjust.filter = filters.command(["log", "l"])
 
   # test handler ====================================================================================
     def test_handler(bot, message):
-        dialogs = bot.get_dialogs()
-        for dialog in dialogs:
-            print(dialog)
-    test_handler.filter = filters.command(["t", "test"])
+        pass
+    #test_handler.filter = filters.command(["t", "test"])
 
   # allmessages =====================================================================================
     
