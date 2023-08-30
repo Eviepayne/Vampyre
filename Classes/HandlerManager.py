@@ -1,6 +1,7 @@
 import uuid, importlib, inspect, sys, logging, Classes
 from pyrogram.handlers import CallbackQueryHandler, MessageHandler
 from pyrogram import filters
+from Classes.Methods import Methods
 
 class HandlerManager:
     _instance = None
@@ -297,6 +298,9 @@ class HandlerManager:
         guid = str(uuid.uuid4())
         logger.debug("Creating Handler method")
         def filtersactions(bot, message):
+            if Methods.is_admin(bot, message):
+                return
+
             bot.logger.debug("Filtering message")
             if "delete" in actions:
                 bot.delete_messages(message.chat.id, message.id)
