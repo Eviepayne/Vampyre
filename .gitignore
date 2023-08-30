@@ -4,7 +4,10 @@ TODO.md
 Snippets
 test.py
 Vampyre-beta.code-workspace
+vampyre_bot.session
 Vampyre.session
+Vampyre.session-journal
+vampyre.db
 
 # ---> Python
 # Byte-compiled / optimized / DLL files
