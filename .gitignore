@@ -8,6 +8,7 @@ vampyre_bot.session
 Vampyre.session
 Vampyre.session-journal
 vampyre.db
+data
 
 # ---> Python
 # Byte-compiled / optimized / DLL files

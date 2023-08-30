@@ -3,55 +3,63 @@
 import sqlite3, json, os, configparser, time, jurigged, logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pyrogram import filters, idle
-from pyrogram.handlers import MessageHandler, CallbackQueryHandler
+from pyrogram.handlers import MessageHandler, CallbackQueryHandler, ChatMemberUpdatedHandler
 from Classes.Client import Client
 from Classes.Handlers import Handlers
 from Classes.HandlerManager import HandlerManager
+
+
+# Startup ===========================================
+# Set data path and check if it exists
+datapath = "data"
+if not os.path.exists(datapath):
+    os.mkdir(datapath)
+    first_startup = True
+else:
+    first_startup = False
+
 
 # Load Configuration
 config = configparser.ConfigParser()
 config.read('config.ini')
 
+# Instantiate bot
+bot = Client(
+    name = config.get('bot', 'app_name'),
+    api_id = config.get('bot', 'api_id'),
+    api_hash = config.get('bot', 'api_hash'),
+    bot_token = config.get('bot', 'bot_token'),
+    bot_owner = config.get('bot', 'bot_owner'),
+    app_version = config.get('bot', 'app_version')
+    )
+
+# Setup Logging
+bot.stdout_handler.setLevel(logging.DEBUG)
+bot.file_handler.setLevel(logging.DEBUG)
+
+# Initialize data base
+if not os.path.exists(os.path.join(bot.db_path)):
+    bot.logger.warning("Could not find database, creating it")
+    bot.initialize_database()
+bot.logger.info("Vampyre is Initialized")
+
 # Create HandlerManager
 HandlerManager = HandlerManager()
 
-# scheduler
+# Create scheduler
 scheduler = AsyncIOScheduler()
 
-
-## initalize bot
-bot = Client(
-        name = config.get('bot', 'app_name'),
-        api_id = config.get('bot', 'api_id'),
-        api_hash = config.get('bot', 'api_hash'),
-        bot_token = config.get('bot', 'bot_token'),
-        bot_owner = config.get('bot', 'bot_owner'),
-        app_version = config.get('bot', 'app_version')
-        )
-
-## Logging
-# Console
-bot.stdout_handler.setLevel(logging.DEBUG)
-# File
-bot.file_handler.setLevel(logging.DEBUG)
-
-bot.logger.info("Vampyre is Initialized")
-if not os.path.exists(bot.db_path):
-    bot.logger.warning("Could not find database, Creating it")
-    os.mkdir("data")
-    bot.initialize_database()
-
-def main():
-    # Initializing bot 
+# Main method =======================================
+def main(first_startup):
     bot.logger.info("Starting Vampyre")
-     # Defining scheduled actions
+    # Defining scheduled actions
     async def scheduled_actions():
         Handler_manager.unload_filters(bot)
         Handler_manager.load_filters(bot)
 
     Handler_manager = HandlerManager
     scheduler.add_job(scheduled_actions, 'interval', minutes=10)
-
+    
     # Setting Jurigged watcher
     jurigged.watch(pattern="./Classes/*.py")
 
@@ -59,14 +67,15 @@ def main():
     Handler_manager.load_handlers(bot) # Group 5
     Handler_manager.load_filters(bot) # Group 0
 
-    # Adding an all handler
+    # Adding all handlers
     bot.add_handler(MessageHandler(Handlers.all_messages),10)
+    bot.add_handler(ChatMemberUpdatedHandler(Handlers.all_chatmemberupdates),10)
 
     # Starting scheduled actions
     scheduler.start()
     bot.logger.info("Vampyre is Ready")
 
-bot.run(main())
+bot.run(main(first_startup))
 
     ### Notes
     # Rate limites https://limits.tginfo.me/en
