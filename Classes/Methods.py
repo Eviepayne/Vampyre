@@ -53,6 +53,7 @@ class Methods():
 
         Returns:
             int: id
+            bool: False
         """
         # Try to get mention or text_mention
         text_mention = next((obj for obj in message.entities if obj.type == enums.MessageEntityType.TEXT_MENTION),None)
