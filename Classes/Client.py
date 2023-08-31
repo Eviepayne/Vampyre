@@ -106,8 +106,9 @@ class Client(PyrogramClient):
         except Exception as e:
             self.logger.critical(f"Could not instantiate user: {e}")
 
-    def instantiate_chat(self,chat): # TODO - When new filters are introduced, instantiate new filters
+    def instantiate_chat(self,chatid): # TODO - When new filters are introduced, instantiate new filters
         try:
+            chat = self.get_chat(chatid)
             self.sql(f"INSERT OR REPLACE INTO [chats] (id, type, title, username, first_name, last_name, bio, description, invite_link, user_index_date, filters) VALUES ({chat.id}, '{chat.type}', '{chat.title}', '{chat.username}', '{chat.first_name}', '{chat.last_name}', '{chat.bio}', '{chat.description}', '{chat.invite_link}', 1, '{json.dumps(self.defaultfilters)}')", mode="Write")
             self.update_users(chat.id, force=True)
         except Exception as e:
@@ -161,11 +162,11 @@ class Client(PyrogramClient):
             self.logger.critical(f"Could not update user index from chat {chatid}: {e}")
 
     def update_chat(self,chatid):
-        chat = self.get_chat(chatid)
         chatid_from_db = self.sql(f"SELECT id FROM chats WHERE id LIKE {chatid}")
         if not chatid_from_db:
-            self.instantiate_chat(chat)
+            self.instantiate_chat(chatid)
             return
+        chat = self.get_chat(chatid)
         try:
             self.sql(f"UPDATE [chats] set type='{chat.type}', title='{chat.title}', username='{chat.username}', first_name='{chat.first_name}', last_name='{chat.last_name}', bio='{chat.bio}', description='{chat.description}', invite_link='{chat.invite_link}' WHERE id = {chat.id}", mode="Write")
         except Exception as e:
