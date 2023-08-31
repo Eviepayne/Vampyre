@@ -42,15 +42,27 @@ class Methods():
         logger.debug(f"User is not owner")
 
   # username_to_id ==================================================================================
-    def username_to_id(bot, message, username):
+    def get_id_from_mention(bot, message, username=None):
+        """Returns an id from text that contains a username
+        If theres a mention, text_mention or just a string of the username, it returns the id
+
+        Args:
+            bot (bot): bot
+            username (string): username of the user
+            message (message): message
+
+        Returns:
+            int: id
+        """
         # Try to get mention or text_mention
-        mention = next((obj for obj in message.entities if obj.type == enums.MessageEntityType.MENTION),None)
         text_mention = next((obj for obj in message.entities if obj.type == enums.MessageEntityType.TEXT_MENTION),None)
-        if mention:
-            user = bot.get_users(args.username)
-            userid = user.id
-        elif text_mention:
-            userid = text_mention.user.id
+        if text_mention:
+            return text_mention.user.id
+        elif username is not None:
+            try:
+                user = bot.get_users(username)
+                return user.id
+            except Exception as e:
+                return False
         else:
             return False
-        return userid

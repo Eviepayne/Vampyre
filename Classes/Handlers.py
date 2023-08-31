@@ -305,33 +305,30 @@ class Handlers():
 
       # Getting the chat ID
         if args.c:
-            bot.send_message(message.chat.id, f"Chat ID: {message.chat.id}")
+            bot.send_message(message.chat.id, f"Chat ID: {message.chat.id}", ParseMode=enums.ParseMode.DISABLED)
             return
 
       # Getting your own id
         if not message.reply_to_message and args.username is None:
-            bot.send_message(message.chat.id, f"Your ID: {message.from_user.id}")
+            bot.send_message(message.chat.id, f"Your ID: {message.from_user.id}", ParseMode=enums.ParseMode.DISABLED)
             return
         
       # Getting the message ID
         if message.reply_to_message and args.m is not None:
-            bot.send_message(message.chat.id, f"Message ID: {message.reply_to_message.id}")
+            bot.send_message(message.chat.id, f"Message ID: {message.reply_to_message.id}", ParseMode=enums.ParseMode.DISABLED)
             return
         
       # Getting id from reply
         if message.reply_to_message and args.username is None:
-            bot.send_message(message.chat.id, f"Users's ID: {message.reply_to_message.from_user.id}")
+            bot.send_message(message.chat.id, f"Users's ID: {message.reply_to_message.from_user.id}", ParseMode=enums.ParseMode.DISABLED)
             return
 
-      # Getting id from mention/text mention  
         if not message.reply_to_message and args.username is not None:
-            if next((obj for obj in message.entities if obj.type == enums.MessageEntityType.MENTION),None):
-                mention = next((obj for obj in message.entities if obj.type == enums.MessageEntityType.MENTION),None)
-                user = bot.get_users(args.username)
-            elif next((obj for obj in message.entities if obj.type == enums.MessageEntityType.TEXT_MENTION),None):
-                text_mention = next((obj for obj in message.entities if obj.type == enums.MessageEntityType.TEXT_MENTION),None)
-                user = text_mention.user
-            bot.send_message(message.chat.id, f"User's ID: {user.id}")
+            userid = Methods.get_id_from_mention(bot, message, args.username)
+            if userid:
+                bot.send_message(message.chat.id, f"User's ID: {userid}")
+            else: # TODO - refactor resolver to use an expensive search if all else fails
+                bot.send_message(message.chat.id, "Could not get user's ID")
     get_user_id.filter = filters.command(["id", "i", "getid"])
 
   # Reload handlers =================================================================================
