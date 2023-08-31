@@ -10,7 +10,6 @@ from Classes.Methods import Methods
 
 lastupdate = {}
 lastfilterupdate = {}
-lastusersindex = {}
 handler_lock = threading.Lock()
 update_lock = threading.Lock()
 
@@ -197,6 +196,7 @@ class Handlers():
         if not Methods.is_admin(bot, message):
             return
 
+        # Create argparse
         parser = ArgumentParser(description='Bans a user')
         helpdialog = textwrap.dedent(
             """
@@ -207,40 +207,75 @@ class Handlers():
             `/ban` [-h | help] 
             Display the __Help Dialog__.
 
-            `/ban [username | id]` 
+            `/ban` [username | id]
             Ban the user
+
+            `/ban` [username | id] `-r`
+            Provides a reason
 
             `/ban` [username | id] `-g`
             Ban the user globally (Everywhere you admin)
 
             `/ban` [username | id] `-u`
             Ban the user in universe (Everywhere Vampyre is in)
-
             """
             )
         parser.add_argument('username', type=str, nargs='?', default=None, help='User to get the ID of')
-        parser.add_argument('-g', action='store_true', help='Ban Globally (all chats you admin in) - Only works if Vampyre is in the group')
-        parser.add_argument('-u', action='store_true', help='Ban in Universe (all chats Vampyre is in) - Only the owners of the bot can do this')
+        #parser.add_argument('-g', action='store_true', help='Ban Globally (all chats you admin in) - Only works if Vampyre is in the group')
+        #parser.add_argument('-u', action='store_true', help='Ban in Universe (all chats Vampyre is in) - Only the owners of the bot can do this')
+        parser.add_argument('-r', help='get or set ban reason')
+        parser.add_argument('-d', action='store_true')
         command = message.text.split()
+
+        # quit if theres no username
         if args.username is None:
             bot.send_message(message.chat.id, helpdialog)
             return
 
-        # TODO - Implement method to return a user object based on mention, textmention or id
-        userid = Methods.resolve_user_id(bot, message, args.username)
-        try:
-            if userid:
-                bot.ban_chat_member(message.chat.id, userid)
-            else:
-                bot.ban_chat_member(message.chat.id, args.username)
-        except Exception as e:
-            bot.send_message(message.chat.id, f"Encountered this error: {e}\n\n{helpdialog}")
+        # get id of the user
+        userid = Methods.get_id_from_mention(bot, message, args.username)
+        
+        # If we couldn't get the id
+        if not userid:
+            bot.send_message(message.chat.id, "User evaded ban :(")  
+            return
 
-        if args.g: # TODO - implement global actions
-            return
-        if args.u: # TODO - implement universal actions
-            return
+        # Dry Run
+        if args.d:
+            bot.send_message(message.chat.id, f"Bang! they got banned. (just kiddin this time)")
+        # Banning user
+        else:
+            try:
+                bot.ban_chat_member(message.chat.id, userid)
+            except Exception as e:
+                bot.send_message(message.chat.id, f"Failed to ban user: {e}")
+                # TODO - if failed, try to restrict user permissions
+        
+        # Set reason TODO - If user is already banned should show reason
+        if args.r:
+            bot.update_ban_reason(message.chat.id, userid, args.r)
+
+        # Storing reason
+
+        # Global ban - TODO - Implement chat memberships for this to work
+        #elif userid and args.g:
+            # # get all chats user is an admin in.
+            # for chatid in chatids:
+            #     try:
+            #         bot.ban_chat_member(chatid, userid)
+            #     except Exception as e:
+            #         bot.logger.info(f"Tried to ban {userid} in chat: {chatid}. Failed because: {e}")
+
+        # Universal ban - TODO - Implement chat memberships for this to work
+        #elif userid and args.u:
+            # # get all chats from db.
+            # for chatid in chatids:
+            #     try:
+            #         bot.ban_chat_member(chatid, userid)
+            #     except Exception as e:
+            #         bot.logger.info(f"Tried to ban {userid} in chat: {chatid}. Failed because: {e}")  
             
+        
     filters.command(["ban", "b"])
 
   # get user id =====================================================================================
@@ -333,15 +368,15 @@ class Handlers():
 
   # Reload handlers =================================================================================
     def reload_handlers(bot, message):
-        # Delete original message
+       # Delete original message
         bot.delete_messages(message.chat.id, message.id)
 
-        # Check if user is owner
+       # Check if user is owner
         if not Methods.is_owner(bot, message):
             bot.logger.debug(f"User: type: {message.from_user.id} Owner: type: {bot.bot_owner}" )
             return
         
-        # Unload and reload handlers/filters
+       # Unload and reload handlers/filters
         bot.logger.info("Reloading Handlers/Filters")
         Handler_Manager = HandlerManager()
         with handler_lock:
@@ -503,16 +538,20 @@ class Handlers():
         with update_lock:
             Handler_Manager = HandlerManager()
             global lastupdate
-            global lastusersindex
             now = int(time.time())
 
+            # updatin last message
+            bot.logger.info("Updating chat membership")
+            bot.update_lastmessage(message.chat.id, message.from_user.id, int(time.time()))
+            
             # update user info
             if now - lastupdate.get(message.from_user.id, 0) > 300:
-                bot.update_user(message.chat.id, message.from_user.id)
+                bot.update_user(message.chat.id, message.from_user.id, message=message)
                 lastupdate.update({message.from_user.id: now})
 
             # update chat info
             if now - lastupdate.get(message.chat.id, 0) > 300:
+                bot.logger.info("updating chat")
                 bot.update_chat(message.chat.id)
                 lastupdate.update({message.chat.id: now})
 
@@ -535,4 +574,9 @@ class Handlers():
             # update chat info
             if now - lastupdate.get(ChatMemberUpdated.chat.id, 0) > 300:
                 bot.update_chat(ChatMemberUpdated.chat.id)
+                lastupdate.update({ChatMemberUpdated.chat.id: now})
+
+            # update chat memberships
+            if now - lastupdate.get(ChatMemberUpdated.chat.id, 0) > 300:
+                bot.instantiate_chat_membership(ChatMemberUpdated.chat.id, ChatMemberUpdated.from_user.id)
                 lastupdate.update({ChatMemberUpdated.chat.id: now})

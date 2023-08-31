@@ -92,9 +92,9 @@ class Client(PyrogramClient):
             self.logger.debug("Creating chats table")
             self.sql("CREATE TABLE chats (id INTEGER, 'type' TEXT, title TEXT, username TEXT, first_name TEXT, last_name TEXT, bio TEXT, description TEXT, invite_link TEXT, filters TEXT, user_index_date INTEGER, chat_auth INTEGER, CONSTRAINT chats_PK PRIMARY KEY (id))", mode="Write")
             self.logger.debug("Creating users table")
-            self.sql("CREATE TABLE users (id INTEGER, first_name TEXT, last_name TEXT, username TEXT, last_message INTEGER, universal_ban INTEGER, is_bot_owner INTEGER, universal_mute INTEGER, CONSTRAINT users_PK PRIMARY KEY (id))", mode="Write")
+            self.sql("CREATE TABLE users (id INTEGER, first_name TEXT, last_name TEXT, username TEXT, universal_ban INTEGER, is_bot_owner INTEGER, universal_mute INTEGER, CONSTRAINT users_PK PRIMARY KEY (id))", mode="Write")
             self.logger.debug("Creating chat memberships table")
-            self.sql("CREATE TABLE chat_memberships ('user' INTEGER, chat INTEGER, CONSTRAINT chat_memberships_PK PRIMARY KEY ('user', chat), CONSTRAINT chat_memberships_FK FOREIGN KEY ('user') REFERENCES users(id), CONSTRAINT chat_memberships_FK_1 FOREIGN KEY (chat) REFERENCES chats(id))", mode="Write")
+            self.sql("CREATE TABLE chat_memberships ('user' INTEGER, chat INTEGER, ban_reason TEXT DEFAULT ('Not Banned'), last_message INTEGER, CONSTRAINT chat_memberships_PK PRIMARY KEY ('user', chat), CONSTRAINT chat_memberships_FK FOREIGN KEY ('user') REFERENCES users(id), CONSTRAINT chat_memberships_FK_1 FOREIGN KEY (chat) REFERENCES chats(id))", mode="Write")
         except Exception as e:
             self.logger.critical(f"Could not create database: {e}")
             quit()
@@ -106,13 +106,26 @@ class Client(PyrogramClient):
         except Exception as e:
             self.logger.critical(f"Could not instantiate user: {e}")
 
-    def instantiate_chat(self,chatid): # TODO - When new filters are introduced, instantiate new filters
+    def instantiate_chat(self, chatid): # TODO - When new filters are introduced, instantiate new filters
         try:
             chat = self.get_chat(chatid)
             self.sql(f"INSERT OR REPLACE INTO [chats] (id, type, title, username, first_name, last_name, bio, description, invite_link, user_index_date, filters) VALUES ({chat.id}, '{chat.type}', '{chat.title}', '{chat.username}', '{chat.first_name}', '{chat.last_name}', '{chat.bio}', '{chat.description}', '{chat.invite_link}', 1, '{json.dumps(self.defaultfilters)}')", mode="Write")
             self.update_users(chat.id, force=True)
         except Exception as e:
             self.logger.critical(f"Could not instantiate chat info: {e}")
+
+    def instantiate_chat_membership(self, chatid, userid):
+        if not self.sql(f"SELECT * FROM chat_memberships WHERE user LIKE {userid} AND chat LIKE {chatid}"):
+            self.logger.debug("Record doesn't exist")
+            try:
+                self.sql(f"INSERT OR REPLACE INTO [chat_memberships] (user, chat) VALUES ({userid}, {chatid})", mode="Write")
+                self.logger.debug("Done instantiation")
+                return True
+            except Exception as e:
+                self.logger.critical(f"Failed to instantiate chat membership. Reason: {e}")
+                return False
+        self.logger.debug("Record exists")
+        return True
 
   # Read from database ===========================================
     def get_chats(self):
@@ -145,15 +158,30 @@ class Client(PyrogramClient):
         if not self.sql(f"SELECT id FROM users WHERE id LIKE {userid}"):
             self.instantiate_user(userid)
             return
+
         # update user info
         try:
             ChatMember = self.get_chat_member(chatid, userid)
             self.sql(f"UPDATE [users] set username='{ChatMember.user.username}', first_name='{ChatMember.user.first_name}', last_name='{ChatMember.user.last_name}' WHERE id = {ChatMember.user.id}", mode="Write")
+            
             # If this is from a message by them, update their last message
             if message is not None and ChatMember.user.id == message.from_user.id:
-                self.sql (f"UPDATE [users] set last_message={int(time.time())}",mode="Write")
+                self.update_lastmessage(chatid, userid, int(time.time()))
         except Exception as e:
-            self.logger.critical(f"Could not update user index from chat {chatid}: {e}")
+            self.logger.critical(f"Could not update user index from chat {chatid}: {e}")  
+
+    def update_ban_reason(self, chatid, userid, reason):
+        try:
+            self.sql(f"UPDATE [chat_memberships] set ban_reason='{reason}'", mode="write")
+        except Exception as e:
+            self.logger.critical(f"Failed to update ban reason: {userid}:user | {chatid}:chat")
+
+    def update_lastmessage(self, chatid, userid, time):
+        if self.instantiate_chat_membership(chatid, userid):
+            try:
+                self.sql(f"UPDATE [chat_memberships] set last_message={time}", mode="write")
+            except Exception as e:
+                self.logger.critical(f"Failed to update last_message time: {userid}:user | {chatid}:chat")
 
     def update_chat(self,chatid):
         chatid_from_db = self.sql(f"SELECT id FROM chats WHERE id LIKE {chatid}")
