@@ -2,8 +2,6 @@ import sqlite3, os, logging, time, json
 from pyrogram import Client as PyrogramClient
 from pyrogram import errors, enums
 
-#logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
 class Client(PyrogramClient):
 
     def __init__(self, bot_owner, flog, slog, glog, *args, **kwargs):
@@ -87,7 +85,7 @@ class Client(PyrogramClient):
             self.logger.debug(f"Returning output")
             return output
 
-  # Instantiate database objects =================================
+  # Create operations ============================================
     def initialize_database(self):
         self.logger.debug("Creating Database")
         try:
@@ -107,7 +105,7 @@ class Client(PyrogramClient):
             self.sql(f"INSERT OR REPLACE INTO [users] (id, first_name, last_name, username) VALUES ({ChatMember.user.id}, '{ChatMember.user.first_name}', '{ChatMember.user.last_name}', '{ChatMember.user.username}')",mode="Write")
             #self.sql(f"INSERT OR REPLACE INTO [chat_memberships] (user, chat) VALUES ('{userid}', '{chatid}')")
         except Exception as e:
-            self.logger.critical(f"Could not instantate user {ChatMember.user.username} from {chatid}: {e}")
+            self.logger.critical(f"Could not instantiate user: {e}")
 
     def instantiate_chat(self,chat): # TODO - When new filters are introduced, instantiate new filters
         try:
@@ -122,7 +120,32 @@ class Client(PyrogramClient):
         except Exception as e:
             self.send_message(chatid, f"Failed to instantiate chat filters: {e}")
 
-  # Update database objects ======================================
+  # Read from database ===========================================
+    def get_chats(self):
+        """Gets a list of chats in the database
+
+            Returns:
+                list: Array of uuids for chats
+            """
+        search = self.sql("SELECT id FROM chats WHERE id LIKE '-%'")
+        chats = []
+        for chat in search:
+            try:
+                chats.append(chat[0])
+            except:
+                pass
+        return chats
+    
+    def get_filters(self, chatid):
+        try:
+            query = self.sql(f"SELECT filters FROM [chats] WHERE id = '{chatid}'")
+            filters = json.loads(query[0][0])
+            self.logger.debug(filters)
+            return filters
+        except Exception as e:
+            self.send_message(chatid, f"Failed to read chat filters: {e}")
+
+  # Update operations ============================================
     def update_user(self, chatid, userid, message=None):
         # Check if user needs instantiation
         if not self.sql(f"SELECT id FROM users WHERE id LIKE {userid}"):
@@ -172,28 +195,13 @@ class Client(PyrogramClient):
             self.sql(f"UPDATE [chats] set filters='{json.dumps(chat_filters)} WHERE id = {chatid}'")
         except Exception as e:
             self.send_message(chatid, f"Failed to update chat filters: {e}")
-
-  # Read from database ===========================================
-    def get_chats(self):
-        """Gets a list of chats in the database
-
-            Returns:
-                list: Array of uuids for chats
-            """
-        search = self.sql("SELECT id FROM chats WHERE id LIKE '-%'")
-        chats = []
-        for chat in search:
-            try:
-                chats.append(chat[0])
-            except:
-                pass
-        return chats
     
-    def get_filters(self, chatid):
-        try:
-            query = self.sql(f"SELECT filters FROM [chats] WHERE id = '{chatid}'")
-            filters = json.loads(query[0][0])
-            self.logger.debug(filters)
-            return filters
-        except Exception as e:
-            self.send_message(chatid, f"Failed to read chat filters: {e}")
+  # Delete operations ============================================
+    def delete_user(self, userid): # TODO - There is currently no need to delete a user
+        pass 
+
+    def delete_chat(self, chatid): # TODO - Delete chat
+        pass
+
+    def delete_filter(self, chatid, filter): # TODO - remove a filter
+        pass

@@ -53,6 +53,7 @@ def main(first_startup):
     bot.logger.info("Starting Vampyre")
     # Defining scheduled actions
     async def scheduled_actions():
+        # Reload Filters
         Handler_manager.unload_filters(bot)
         Handler_manager.load_filters(bot)
 
@@ -111,9 +112,6 @@ bot.run(main(first_startup))
     # loadfilters(bot) # TODO Figure out how to dynamically have different filters in the bot
 
     # ## Commands
-    # # Callback Queries
-    # bot.add_handler(CallbackQueryHandler(newchat,filters.regex(r"(?i)(request)|(cancel)|(deny)"))) # TODO - Figure out why I need this, probably remove
-    # bot.add_handler(CallbackQueryHandler(addchat,filters.regex(r"(?i)(accept)"))) # TODO - Figure out why I need this, probably remove
     # # bot owner commands
     # bot.add_handler(MessageHandler(leave,filters.command(["leave","l"]))) # TODO - Review implementation
     # bot.add_handler(MessageHandler(getchatlist,filters.command(["chats","chl"]))) # TODO - Review implementation

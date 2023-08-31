@@ -188,6 +188,61 @@ class Handlers():
                 Handler_Manager.DestroyCallback(bot, guidcancel, handlercancel)
             bot.delete_messages(statusmessage.chat.id, statusmessage.id)
 
+  # Ban users
+    def ban_user(bot, message):
+        # Delete command
+        bot.delete_messages(message.chat.id, message.id)
+        
+        # Check if admin
+        if not Methods.is_admin(bot, message):
+            return
+
+        parser = ArgumentParser(description='Bans a user')
+        helpdialog = textwrap.dedent(
+            """
+            **Ban users**
+
+            **Commands**
+
+            `/ban` [-h | help] 
+            Display the __Help Dialog__.
+
+            `/ban [username | id]` 
+            Ban the user
+
+            `/ban` [username | id] `-g`
+            Ban the user globally (Everywhere you admin)
+
+            `/ban` [username | id] `-u`
+            Ban the user in universe (Everywhere Vampyre is in)
+
+            """
+            )
+        parser.add_argument('username', type=str, nargs='?', default=None, help='User to get the ID of')
+        parser.add_argument('-g', action='store_true', help='Ban Globally (all chats you admin in) - Only works if Vampyre is in the group')
+        parser.add_argument('-u', action='store_true', help='Ban in Universe (all chats Vampyre is in) - Only the owners of the bot can do this')
+        command = message.text.split()
+        if args.username is None:
+            bot.send_message(message.chat.id, helpdialog)
+            return
+
+        # TODO - Implement method to return a user object based on mention, textmention or id
+        userid = Methods.resolve_user_id(bot, message, args.username)
+        try:
+            if userid:
+                bot.ban_chat_member(message.chat.id, userid)
+            else:
+                bot.ban_chat_member(message.chat.id, args.username)
+        except Exception as e:
+            bot.send_message(message.chat.id, f"Encountered this error: {e}\n\n{helpdialog}")
+
+        if args.g: # TODO - implement global actions
+            return
+        if args.u: # TODO - implement universal actions
+            return
+            
+    filters.command(["ban", "b"])
+
   # get user id =====================================================================================
     def get_user_id(bot, message):
         """Show a user's ID
