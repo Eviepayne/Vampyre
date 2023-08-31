@@ -113,12 +113,6 @@ class Client(PyrogramClient):
             self.update_users(chat.id, force=True)
         except Exception as e:
             self.logger.critical(f"Could not instantiate chat info: {e}")
-        
-    def instantiate_filters(self,chatid): # TODO - parse existing filters, overwrite default filters
-        try:
-            self.sql(f"UPDATE [chats] set filters='{json.dumps(self.defaultfilters)} WHERE id = {chatid}'")
-        except Exception as e:
-            self.send_message(chatid, f"Failed to instantiate chat filters: {e}")
 
   # Read from database ===========================================
     def get_chats(self):
@@ -196,6 +190,12 @@ class Client(PyrogramClient):
         except Exception as e:
             self.send_message(chatid, f"Failed to update chat filters: {e}")
     
+    def instantiate_filters(self,chatid): # TODO - parse existing filters, overwrite default filters
+        try:
+            self.sql(f"UPDATE [chats] set filters='{json.dumps(self.defaultfilters)} WHERE id = {chatid}'")
+        except Exception as e:
+            self.send_message(chatid, f"Failed to instantiate chat filters: {e}")
+
   # Delete operations ============================================
     def delete_user(self, userid): # TODO - There is currently no need to delete a user
         pass 
