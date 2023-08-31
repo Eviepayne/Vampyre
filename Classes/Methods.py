@@ -54,7 +54,3 @@ class Methods():
         else:
             return False
         return userid
-    
-  # id_to_username ==================================================================================
-    def id_to_username(bot, message, id): # TODO - resolve id to a username
-        pass

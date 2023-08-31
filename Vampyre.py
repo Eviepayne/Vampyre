@@ -33,7 +33,7 @@ bot = Client(
     api_hash = config.get('bot', 'api_hash'),
     bot_token = config.get('bot', 'bot_token'),
     bot_owner = config.get('bot', 'bot_owner'),
-    app_version = "Vampyre 1.0.0"
+    app_version = "Vampyre 1.0.1" # Updating some exception handlers
     )
 
 # Initialize data base
@@ -52,7 +52,7 @@ scheduler = AsyncIOScheduler()
 def main(first_startup):
     bot.logger.info("Starting Vampyre")
     # Defining scheduled actions
-    async def scheduled_actions():
+    async def scheduled_actions(): # TODO - This is a workaround for loading filters after a chat instantiates. Need a better way
         # Reload Filters
         Handler_manager.unload_filters(bot)
         Handler_manager.load_filters(bot)
