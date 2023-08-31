@@ -99,11 +99,10 @@ class Client(PyrogramClient):
             self.logger.critical(f"Could not create database: {e}")
             quit()
 
-    def instantiate_user(self, chatid, userid):
+    def instantiate_user(self, userid):
         try:
-            ChatMember = self.get_chat_member(chatid, userid)
-            self.sql(f"INSERT OR REPLACE INTO [users] (id, first_name, last_name, username) VALUES ({ChatMember.user.id}, '{ChatMember.user.first_name}', '{ChatMember.user.last_name}', '{ChatMember.user.username}')",mode="Write")
-            #self.sql(f"INSERT OR REPLACE INTO [chat_memberships] (user, chat) VALUES ('{userid}', '{chatid}')")
+            user = self.get_users(userid)
+            self.sql(f"INSERT OR REPLACE INTO [users] (id, first_name, last_name, username) VALUES ({user.id}, '{user.first_name}', '{user.last_name}', '{user.username}')",mode="Write")
         except Exception as e:
             self.logger.critical(f"Could not instantiate user: {e}")
 
@@ -149,7 +148,7 @@ class Client(PyrogramClient):
     def update_user(self, chatid, userid, message=None):
         # Check if user needs instantiation
         if not self.sql(f"SELECT id FROM users WHERE id LIKE {userid}"):
-            self.instantiate_user(chatid, userid)
+            self.instantiate_user(userid)
             return
         # update user info
         try:
