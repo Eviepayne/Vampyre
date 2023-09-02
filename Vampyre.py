@@ -33,7 +33,7 @@ bot = Client(
     api_hash = config.get('bot', 'api_hash'),
     bot_token = config.get('bot', 'bot_token'),
     bot_owner = config.get('bot', 'bot_owner'),
-    app_version = "Vampyre 1.0.1" # Updating some exception handlers
+    app_version = "Vampyre 1.1.1" # Updated ban command and patched SQL injection
     )
 
 # Initialize data base
