@@ -189,14 +189,14 @@ class Handlers():
 
   # Ban users
     def ban_user(bot, message):
-        # Delete command
+      # Delete command
         bot.delete_messages(message.chat.id, message.id)
         
-        # Check if admin
+      # Check if admin
         if not Methods.is_admin(bot, message):
             return
 
-        # Create argparse
+      # Create argparse
         parser = ArgumentParser(description='Bans a user')
         helpdialog = textwrap.dedent(
             """
@@ -223,60 +223,63 @@ class Handlers():
         parser.add_argument('username', type=str, nargs='?', default=None, help='User to get the ID of')
         #parser.add_argument('-g', action='store_true', help='Ban Globally (all chats you admin in) - Only works if Vampyre is in the group')
         #parser.add_argument('-u', action='store_true', help='Ban in Universe (all chats Vampyre is in) - Only the owners of the bot can do this')
-        parser.add_argument('-r', help='get or set ban reason')
+        parser.add_argument('-r', nargs='*', help='get or set ban reason')
         parser.add_argument('-d', action='store_true')
         command = message.text.split()
+        try:
+            args = parser.parse_args(command[1:])
+        except Exception as e:
+            bot.send_message(message.chat.id, f"Invalid Argument\n{helpdialog}")
 
-        # quit if theres no username
+      # quit if theres no username
         if args.username is None:
             bot.send_message(message.chat.id, helpdialog)
             return
 
-        # get id of the user
+      # get id/chatmember object of the user
         userid = Methods.get_id_from_mention(bot, message, args.username)
+        chatmember = bot.get_chat_member(message.chat.id, userid)
         
-        # If we couldn't get the id
+      # If we couldn't get the id
         if not userid:
             bot.send_message(message.chat.id, "User evaded ban :(")  
             return
 
-        # Dry Run
-        if args.d:
-            bot.send_message(message.chat.id, f"Bang! they got banned. (just kiddin this time)")
-        # Banning user
-        else:
+      # Banning user flow - TODO - Implement Global/Universal logic
+       # Dry Run banning
+        if not chatmember.restricted_by and args.d:
+                bot.send_message(message.chat.id, f"Bang! they got banned. (just kiddin this time)")
+                ban_state = True
+
+       # Actual banning
+        elif not chatmember.restricted_by:
             try:
-                bot.ban_chat_member(message.chat.id, userid)
+                #bot.ban_chat_member(message.chat.id, userid)
+                ban_state = True
             except Exception as e:
-                bot.send_message(message.chat.id, f"Failed to ban user: {e}")
-                # TODO - if failed, try to restrict user permissions
-        
-        # Set reason TODO - If user is already banned should show reason
+                bot.send_message(message.chat.id, f"Failed to ban user: {e}") # TODO - if failed, try to restrict user permissions
+                return
+
+       # Already banned
+        elif chatmember.restricted_by:
+            bot.send_message(message.chat.id, f"This user is already banned")
+            ban_state = None
+
+      # Reason storing flow
         if args.r:
-            bot.update_ban_reason(message.chat.id, userid, args.r)
+            reason = ' '.join(args.r)
+           # banned in dryrun
+            if ban_state and args.d:
+                bot.send_message(message.chat.id, f"Provided reason: {reason}")
+           # banned
+            elif ban_state:
+                bot.update_ban_reason(message.chat.id, userid, reason)
+                bot.send_message(message.chat.id, f"Reason: {reason}")
+            else:
+                reason = bot.get_ban_reason(chatid, userid)
+                bot.send_message(message.chat.id, {f"Reason: {reason}"})
 
-        # Storing reason
-
-        # Global ban - TODO - Implement chat memberships for this to work
-        #elif userid and args.g:
-            # # get all chats user is an admin in.
-            # for chatid in chatids:
-            #     try:
-            #         bot.ban_chat_member(chatid, userid)
-            #     except Exception as e:
-            #         bot.logger.info(f"Tried to ban {userid} in chat: {chatid}. Failed because: {e}")
-
-        # Universal ban - TODO - Implement chat memberships for this to work
-        #elif userid and args.u:
-            # # get all chats from db.
-            # for chatid in chatids:
-            #     try:
-            #         bot.ban_chat_member(chatid, userid)
-            #     except Exception as e:
-            #         bot.logger.info(f"Tried to ban {userid} in chat: {chatid}. Failed because: {e}")  
-            
-        
-    filters.command(["ban", "b"])
+    ban_user.filter = filters.command(["ban", "b"])
 
   # get user id =====================================================================================
     def get_user_id(bot, message):
@@ -340,22 +343,22 @@ class Handlers():
 
       # Getting the chat ID
         if args.c:
-            bot.send_message(message.chat.id, f"Chat ID: {message.chat.id}", ParseMode=enums.ParseMode.DISABLED)
+            bot.send_message(message.chat.id, f"Chat ID: {message.chat.id}", parse_mode=enums.ParseMode.DISABLED)
             return
 
       # Getting your own id
         if not message.reply_to_message and args.username is None:
-            bot.send_message(message.chat.id, f"Your ID: {message.from_user.id}", ParseMode=enums.ParseMode.DISABLED)
+            bot.send_message(message.chat.id, f"Your ID: {message.from_user.id}", parse_mode=enums.ParseMode.DISABLED)
             return
         
       # Getting the message ID
         if message.reply_to_message and args.m is not None:
-            bot.send_message(message.chat.id, f"Message ID: {message.reply_to_message.id}", ParseMode=enums.ParseMode.DISABLED)
+            bot.send_message(message.chat.id, f"Message ID: {message.reply_to_message.id}", parse_mode=enums.ParseMode.DISABLED)
             return
         
       # Getting id from reply
         if message.reply_to_message and args.username is None:
-            bot.send_message(message.chat.id, f"Users's ID: {message.reply_to_message.from_user.id}", ParseMode=enums.ParseMode.DISABLED)
+            bot.send_message(message.chat.id, f"Users's ID: {message.reply_to_message.from_user.id}", parse_mode=enums.ParseMode.DISABLED)
             return
 
         if not message.reply_to_message and args.username is not None:

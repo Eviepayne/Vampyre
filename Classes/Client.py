@@ -62,25 +62,38 @@ class Client(PyrogramClient):
         ]
         
  # Access database ===============================================
-    def sql(self, query, mode=None):
+    def sql(self, query, params=None, mode=None):
+        
+        if params is None:
+            params = []
+        
         if mode is None:
             mode = "Read"
         else:
             mode = "Write"
+
+        for i, param in enumerate(params):
+            self.logger.debug(f"Parameter {i+1} is of type {type(param)}")
+
         self.logger.debug(f"Connecting to DB in {mode} mode")
         self.connection = sqlite3.connect(self.db_path)
         self.cursor = self.connection.cursor()
+
         self.logger.debug(f"Executing Query: {query}")
-        self.cursor.execute(query)
+        self.cursor.execute(query, params)
+
         if mode == "Read":
             output = self.cursor.fetchall()
             self.logger.debug(f"Retrieved output: {output}")
+
         if mode == "Write":
             self.connection.commit()
             self.logger.debug(f"Query Written")
+
         self.cursor.close()
         self.connection.close()
         self.logger.debug(f"Connection Closed")
+
         if mode == "Read":
             self.logger.debug(f"Returning output")
             return output
@@ -102,23 +115,23 @@ class Client(PyrogramClient):
     def instantiate_user(self, userid):
         try:
             user = self.get_users(userid)
-            self.sql(f"INSERT OR REPLACE INTO [users] (id, first_name, last_name, username) VALUES ({user.id}, '{user.first_name}', '{user.last_name}', '{user.username}')",mode="Write")
+            self.sql(f"INSERT OR REPLACE INTO [users] (id, first_name, last_name, username) VALUES (?, ?, ?, ?)", params=[user.id, user.first_name, user.last_name, user.username], mode="Write")
         except Exception as e:
             self.logger.critical(f"Could not instantiate user: {e}")
 
     def instantiate_chat(self, chatid): # TODO - When new filters are introduced, instantiate new filters
         try:
             chat = self.get_chat(chatid)
-            self.sql(f"INSERT OR REPLACE INTO [chats] (id, type, title, username, first_name, last_name, bio, description, invite_link, user_index_date, filters) VALUES ({chat.id}, '{chat.type}', '{chat.title}', '{chat.username}', '{chat.first_name}', '{chat.last_name}', '{chat.bio}', '{chat.description}', '{chat.invite_link}', 1, '{json.dumps(self.defaultfilters)}')", mode="Write")
+            self.sql(f"INSERT OR REPLACE INTO [chats] (id, type, title, username, first_name, last_name, bio, description, invite_link, user_index_date, filters) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)", params=[chat.id, str(chat.type), chat.title, chat.username, chat.first_name, chat.last_name, chat.bio, chat.description, chat.invite_link, json.dumps(self.defaultfilters)], mode="Write")
             self.update_users(chat.id, force=True)
         except Exception as e:
             self.logger.critical(f"Could not instantiate chat info: {e}")
 
     def instantiate_chat_membership(self, chatid, userid):
-        if not self.sql(f"SELECT * FROM chat_memberships WHERE user LIKE {userid} AND chat LIKE {chatid}"):
+        if not self.sql("SELECT * FROM chat_memberships WHERE user LIKE ? AND chat LIKE ?", [userid, chatid]):
             self.logger.debug("Record doesn't exist")
             try:
-                self.sql(f"INSERT OR REPLACE INTO [chat_memberships] (user, chat) VALUES ({userid}, {chatid})", mode="Write")
+                self.sql("INSERT INTO [chat_memberships] (user, chat) VALUES (?, ?)", [userid, chatid], mode="Write")
                 self.logger.debug("Done instantiation")
                 return True
             except Exception as e:
@@ -128,7 +141,7 @@ class Client(PyrogramClient):
         return True
 
   # Read from database ===========================================
-    def get_chats(self):
+    def get_chats(self): # TODO - this code probably doesn't work
         """Gets a list of chats in the database
 
             Returns:
@@ -137,15 +150,19 @@ class Client(PyrogramClient):
         search = self.sql("SELECT id FROM chats WHERE id LIKE '-%'")
         chats = []
         for chat in search:
-            try:
-                chats.append(chat[0])
-            except:
-                pass
+            chats.append(chat[0])
         return chats
-    
+
+    def get_ban_reason(self, chatid, userid):
+        try:
+            query = self.sql("SELECT ban_reason from [chat_memberships] WHERE user LIKE ? and chat LIKE ?", [userid, chatid], mode="Write")
+            return query[0][0]
+        except Exception as e:
+            self.logger.critical(f"Failed to update ban reason: {userid}:user | {chatid}:chat")
+
     def get_filters(self, chatid):
         try:
-            query = self.sql(f"SELECT filters FROM [chats] WHERE id = '{chatid}'")
+            query = self.sql("SELECT filters FROM [chats] WHERE id = ?", [chatid])
             filters = json.loads(query[0][0])
             self.logger.debug(filters)
             return filters
@@ -155,14 +172,14 @@ class Client(PyrogramClient):
   # Update operations ============================================
     def update_user(self, chatid, userid, message=None):
         # Check if user needs instantiation
-        if not self.sql(f"SELECT id FROM users WHERE id LIKE {userid}"):
+        if not self.sql("SELECT id FROM users WHERE id LIKE ?", [userid]):
             self.instantiate_user(userid)
             return
 
         # update user info
         try:
             ChatMember = self.get_chat_member(chatid, userid)
-            self.sql(f"UPDATE [users] set username='{ChatMember.user.username}', first_name='{ChatMember.user.first_name}', last_name='{ChatMember.user.last_name}' WHERE id = {ChatMember.user.id}", mode="Write")
+            self.sql("UPDATE [users] set username=?, first_name=?, last_name=? WHERE id = ?", [ChatMember.user.username, ChatMember.user.first_name, ChatMember.user.last_name, ChatMember.user.id], mode="Write")
             
             # If this is from a message by them, update their last message
             if message is not None and ChatMember.user.id == message.from_user.id:
@@ -171,56 +188,59 @@ class Client(PyrogramClient):
             self.logger.critical(f"Could not update user index from chat {chatid}: {e}")  
 
     def update_ban_reason(self, chatid, userid, reason):
-        try:
-            self.sql(f"UPDATE [chat_memberships] set ban_reason='{reason}'", mode="write")
-        except Exception as e:
-            self.logger.critical(f"Failed to update ban reason: {userid}:user | {chatid}:chat")
+        # check if membership exists
+        if self.instantiate_chat_membership(chatid, userid):
+            try:
+                self.sql("UPDATE [chat_memberships] set ban_reason=? WHERE user LIKE ? and chat LIKE ?", [reason, userid, chatid], mode="Write")
+            except Exception as e:
+                self.logger.critical(f"Failed to update ban reason: {userid}:user | {chatid}:chat\n{e}")
 
     def update_lastmessage(self, chatid, userid, time):
         if self.instantiate_chat_membership(chatid, userid):
             try:
-                self.sql(f"UPDATE [chat_memberships] set last_message={time}", mode="write")
+                self.sql("UPDATE [chat_memberships] set last_message=?", [time], mode="Write")
             except Exception as e:
                 self.logger.critical(f"Failed to update last_message time: {userid}:user | {chatid}:chat")
 
     def update_chat(self,chatid):
-        chatid_from_db = self.sql(f"SELECT id FROM chats WHERE id LIKE {chatid}")
+        chatid_from_db = self.sql("SELECT id FROM chats WHERE id LIKE ?", [chatid])
         if not chatid_from_db:
             self.instantiate_chat(chatid)
             return
         chat = self.get_chat(chatid)
         try:
-            self.sql(f"UPDATE [chats] set type='{chat.type}', title='{chat.title}', username='{chat.username}', first_name='{chat.first_name}', last_name='{chat.last_name}', bio='{chat.bio}', description='{chat.description}', invite_link='{chat.invite_link}' WHERE id = {chat.id}", mode="Write")
+            self.sql("UPDATE [chats] set type=?, title=?, username=?, first_name=?, last_name=?, bio=?, description=?, invite_link=? WHERE id = ?", [str(chat.type), chat.title, chat.username, chat.first_name, chat.last_name, chat.bio, chat.description, chat.invite_link, chat.id], mode="Write")
         except Exception as e:
             self.logger.critical(f"Could not update chat info: {e}")
     
     def update_users(self, chatid, force=False):
         last_date = self.sql(f"SELECT user_index_date FROM chats WHERE id LIKE {chatid}")
+        self.logger.info(last_date)
         if int(time.time() - last_date[0][0] > 3600 or force == True):
             try:
                 ChatMembers = self.get_chat_members(chatid)
                 for ChatMember in ChatMembers:
                     self.update_user(chatid, ChatMember.user.id)
-                self.sql(f"UPDATE [chats] SET user_index_date={int(time.time())}", mode="Write")
+                self.sql("UPDATE [chats] SET user_index_date=?", [int(time.time())], mode="Write")
             except Exception as e:
                 self.logger.critical(f"Could not update user index from chat {chatid}: {e}")
     
     def update_filters(self, chatid, filters):
         try:
-            chat_filter_raw = self.sql(f"SELECT filters FROM chats WHERE id LIKE {chatid}")
+            chat_filter_raw = self.sql("SELECT filters FROM chats WHERE id LIKE ?", [chatid])
         except Exception as e:
             self.send_message(chatid, f"Failed to Get the chat filters: {e}")
         chat_filters = json.loads(chat_filter_raw[0][0])
         for f in filters:
             chat_filters.append(f)
         try:
-            self.sql(f"UPDATE [chats] set filters='{json.dumps(chat_filters)} WHERE id = {chatid}'")
+            self.sql("UPDATE [chats] set filters=? WHERE id = ?", [json.dumps(chat_filters), chatid])
         except Exception as e:
             self.send_message(chatid, f"Failed to update chat filters: {e}")
     
     def instantiate_filters(self,chatid): # TODO - parse existing filters, overwrite default filters
         try:
-            self.sql(f"UPDATE [chats] set filters='{json.dumps(self.defaultfilters)} WHERE id = {chatid}'")
+            self.sql("UPDATE [chats] set filters=? WHERE id = ?", [json.dumps(self.defaultfilters), chatid])
         except Exception as e:
             self.send_message(chatid, f"Failed to instantiate chat filters: {e}")
 
