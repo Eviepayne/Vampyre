@@ -215,7 +215,7 @@ class Client(PyrogramClient):
     
     def update_users(self, chatid, force=False):
         last_date = self.sql(f"SELECT user_index_date FROM chats WHERE id LIKE {chatid}")
-        self.logger.info(last_date)
+        self.logger.debug(last_date)
         if int(time.time() - last_date[0][0] > 3600 or force == True):
             try:
                 ChatMembers = self.get_chat_members(chatid)
