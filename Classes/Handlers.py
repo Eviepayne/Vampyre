@@ -1,5 +1,6 @@
 import sqlite3, os, logging, time, threading, textwrap, re, jurigged # Threading is here so callback cleanups don't have issues handling 2 threads
 from pyrogram import filters, enums, types
+from pyrogram.errors import FloodWait, MessageDeleteForbidden
 from Classes.Keyboard import Keyboard
 from Classes.ArgparseOverride import ArgumentParser
 from Classes.HandlerManager import HandlerManager
@@ -39,11 +40,26 @@ class Handlers():
                     deletelist = data['deletelist']
                 Handler_Manager.DestroyCallback(bot, guid, handler)
             if selectedguid == callback_actions['Delete Messages']:
-                deletelist.append(message.message.id)
+                bot.delete_messages(message.message.chat.id, message.message.id)
                 try:
                     bot.delete_messages(message.message.chat.id, deletelist)
+                except MessageDeleteForbidden as e:
+                    sections = [deletelist[i:i + 10] for i in range(0, len(deletelist), 10)]
+                    for section in sections:
+                        try:
+                            bot.delete_messages(message.message.chat.id, section)
+                        except MessageDeleteForbidden as e:
+                            for msgid in section:
+                                try:
+                                    bot.delete_messages(message.message.chat.id, msgid)
+                                except MessageDeleteForbidden as e:
+                                    bot.send_message(message.message.chat.id, "We have deleted everything we can that Telegram will let us")
+                                    break
+                            break
+                    bot.send_message(message.message.chat.id, f"The Messages are too old to delete")
                 except Exception as e:
-                    bot.send_message(message.message.chat.id, f"We failed to delete the following messages:\n{deletelist}\nThis was the issue: {e}")
+                    bot.send_message(message.message.chat.id, f"We failed to delete the following messages for an unknown reasdon:\n{deletelist}\nThis was the issue: {e}")
+
             else:
                 deletelist.clear()
                 deletelist.append(message.message.id)
@@ -187,7 +203,7 @@ class Handlers():
                 Handler_Manager.DestroyCallback(bot, guidcancel, handlercancel)
             bot.delete_messages(statusmessage.chat.id, statusmessage.id)
 
-  # Ban users
+  # Ban users =======================================================================================
     def ban_user(bot, message):
       # Delete command
         bot.delete_messages(message.chat.id, message.id)
@@ -544,7 +560,7 @@ class Handlers():
             now = int(time.time())
 
             # updatin last message
-            bot.logger.info("Updating chat membership")
+            bot.logger.debug("Updating chat membership")
             bot.update_lastmessage(message.chat.id, message.from_user.id, int(time.time()))
             
             # update user info
@@ -554,7 +570,7 @@ class Handlers():
 
             # update chat info
             if now - lastupdate.get(message.chat.id, 0) > 300:
-                bot.logger.info("updating chat")
+                bot.logger.debug("updating chat")
                 bot.update_chat(message.chat.id)
                 lastupdate.update({message.chat.id: now})
 
