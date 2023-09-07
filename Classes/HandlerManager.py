@@ -75,17 +75,16 @@ class HandlerManager:
             bot (client): bot object passed from message handler
         """
         bot.logger.info("Loading Filters")
-        logger = logging.getLogger("Vampyre.load_filters")
-        logger.debug("Getting all chats from database")
+        bot.logger.info("Getting all chats from database")
         chatids = bot.get_chats()
         for chatid in chatids:
-            logger.debug(f"Getting filters for: {chatid}")
+            bot.logger.info(f"Getting filters for: {chatid}")
             chatfilters = bot.get_filters(chatid)
-            logger.debug(f"Chat filters: {chatfilters}")
-            logger.debug("Creating chat filter handlers")
+            bot.logger.info(f"Chat filters: {chatfilters}")
+            bot.logger.info("Creating chat filter handlers")
             for cf in chatfilters:
-                self.Createfilter(bot, filters.regex(cf[1]), cf[2])
-        logger.debug("All filters Loaded")
+                self.Createfilter(bot, cf[0], filters.regex(cf[1]), cf[2], chatid)
+        bot.logger.info("All filters Loaded")
 
  # Manage Handlers ===============================================
   # Store Handlers
@@ -123,10 +122,27 @@ class HandlerManager:
         Returns:
             Handler: Filter
         """
-        logger = logging.getLogger("Vampyre.get_filter")
-        logger.debug("Returning Filter")
+        logger = logging.getLogger("Vampyre")
+        logger.info("Returning Filter")
         return self.filters.get(guid)
     
+    def get_filters_chat(self, chatid):
+        """gets all guids for a filter from a chat
+
+        Args:
+            chatid (int): chatid (is converted to string inside method)
+
+        Returns:
+            list: list of guids (including the chatid) from the chat
+        """
+        chatid = str(chatid)
+        guids = [guid for guid in self.filters]
+        filters_for_chat = []
+        for guid in guids:
+            if chatid in guid:
+                filters_for_chat.append(guid)
+        return filters_for_chat
+
     def get_handler(self, guid):
         """Gets the handler for the guid
 
@@ -282,7 +298,7 @@ class HandlerManager:
 
  # Filter Handlers ===============================================
     # Filter handlers should be in group -100
-    def Createfilter(self, bot, messagefilter, actions):
+    def Createfilter(self, bot, filtername, messagefilter, actions, chatid): # TODO - store guid where I can get it back with a known chatid
         """Creates a filter handler
 
         Args:
@@ -295,7 +311,7 @@ class HandlerManager:
         """
         logger = logging.getLogger("Vampyre.CreateFilter")
         logger.debug("Generating GUID")
-        guid = str(uuid.uuid4())
+        guid = f"{filtername}{chatid}"
         logger.debug("Creating Handler method")
         def filtersactions(bot, message):
             if Methods.is_admin(bot, message):
@@ -320,7 +336,7 @@ class HandlerManager:
                 #     actionlog(bot, message, name, mode="Admins")
         messagehandler = bot.add_handler(MessageHandler(filtersactions, messagefilter))
         logger.debug("Storing Handler")
-        self.store_filter(guid, messagehandler)
+        self.store_filter(guid, messagehandler, data={'chatid':chatid})
         return guid
 
     def DestroyFilter(self, bot, guid, handler):
