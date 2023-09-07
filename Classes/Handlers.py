@@ -1,6 +1,6 @@
 import sqlite3, os, logging, time, threading, textwrap, re, jurigged # Threading is here so callback cleanups don't have issues handling 2 threads
 from pyrogram import filters, enums, types
-from pyrogram.errors import FloodWait, MessageDeleteForbidden
+from pyrogram.errors import FloodWait, MessageDeleteForbidden, UserNotParticipant
 from Classes.Keyboard import Keyboard
 from Classes.ArgparseOverride import ArgumentParser
 from Classes.HandlerManager import HandlerManager
@@ -204,7 +204,7 @@ class Handlers():
             bot.delete_messages(statusmessage.chat.id, statusmessage.id)
 
   # Ban users =======================================================================================
-    def ban_user(bot, message):
+    def ban_user_arg_control(bot, message): 
       # Delete command
         bot.delete_messages(message.chat.id, message.id)
         
@@ -237,8 +237,8 @@ class Handlers():
             """
             )
         parser.add_argument('username', type=str, nargs='?', default=None, help='User to get the ID of')
-        #parser.add_argument('-g', action='store_true', help='Ban Globally (all chats you admin in) - Only works if Vampyre is in the group')
-        #parser.add_argument('-u', action='store_true', help='Ban in Universe (all chats Vampyre is in) - Only the owners of the bot can do this')
+        parser.add_argument('-g', action='store_true', help='Ban Globally (all chats you admin in) - Only works if Vampyre is in the group')
+        parser.add_argument('-u', action='store_true', help='Ban in Universe (all chats Vampyre is in) - Only the owners of the bot can do this')
         parser.add_argument('-r', nargs='*', help='get or set ban reason')
         parser.add_argument('-d', action='store_true')
         command = message.text.split()
@@ -246,56 +246,164 @@ class Handlers():
             args = parser.parse_args(command[1:])
         except Exception as e:
             bot.send_message(message.chat.id, f"Invalid Argument\n{helpdialog}")
+            return
+
+      # If args.u and not bot owner return
+        if args.u and not Methods.is_owner(bot, message.from_user.id):
+            bot.logger.warning(f"Non-Owner {message.from_user.id} Tried to uniban")
+            return
 
       # quit if theres no username
         if args.username is None:
             bot.send_message(message.chat.id, helpdialog)
             return
 
-      # get id/chatmember object of the user
+      # get id object of the user
         userid = Methods.get_id_from_mention(bot, message, args.username)
-        chatmember = bot.get_chat_member(message.chat.id, userid)
-        
-      # If we couldn't get the id
+        bot.logger.debug(f"userid: {userid}")
+
+      # If we couldn't get the id return with error
         if not userid:
-            bot.send_message(message.chat.id, "User evaded ban :(")  
+            bot.send_message(message.chat.id, "Could not get the users id, try mentioning the user directly.\nIf you did, you may not be entering the mention correctly or your client is sending bad data.")  
             return
 
-      # Banning user flow - TODO - Implement Global/Universal logic
-       # Dry Run banning
-        if not chatmember.restricted_by and args.d:
-                bot.send_message(message.chat.id, f"Bang! they got banned. (just kiddin this time)")
-                ban_state = True
+      # Set reason string if there's a reason or universal ban
+        
+        if args.r:
+            if len(args.r) < 1:
+                bot.send_message("You need to add some text to the reason. For Ex. | -r ate my cake")
+                return
+            if args.r and args.u:
+                u = "(universal ban)"
+                reason = f"{u} {' '.join(args.r)}"
+            elif len(args.r) > 1:
+                reason = ' '.join(args.r)
+            elif args.u:
+                reason = "(universal ban)"
+            elif args.r:
+                reason = args.r
+    
+      # Universal Ban
+        if args.u:
+            # Prep
+            chatids = bot.get_chats()
+            faillist = []
+            successlist = []
+            for chatid in chatids:
+                # check if banned
+                if Methods.is_banned(bot, chatid, userid):
+                    successlist.append(chatid)
+                    return
+                # ban if not banned
+                if args.d:
+                    if args.r:
+                        status = Handlers.ban_user(bot, chatid, userid, reason, True)
+                    else:
+                        status = Handlers.ban_user(bot, chatid, userid, True)
+                else:
+                    if args.r:
+                        status = Handlers.ban_user(bot, chatid, userid, reason)
+                    else:
+                        status = Handlers.ban_user(bot, chatid, userid)
+                if status:
+                    successlist.append(chatid)
+                else:
+                    faillist.append(chatid)
+            bot.logger.debug(f"successlist: {successlist}")
+            if len(successlist) == len(chatids):
+                bot.send_message(message.chat.id, "Successfully banned in all chats")
+            else:
+                bot.send_message(message.chat.id, f"Failed to ban in all chats. Failed chats reported: {faillist}")
 
-       # Actual banning
-        elif not chatmember.restricted_by:
-            try:
-                #bot.ban_chat_member(message.chat.id, userid)
-                ban_state = True
-            except Exception as e:
-                bot.send_message(message.chat.id, f"Failed to ban user: {e}") # TODO - if failed, try to restrict user permissions
+            # Handle setting the universal ban
+            if args.d:
+                return
+            bot.add_universal_ban(userid)
+            return
+
+      # Global Ban
+        elif args.g:
+            # Prep
+            chatids = bot.get_user_admin_list(userid)
+            faillist = []
+            successlist = []
+            for chatid in chatids:
+                chatid = chatid[0]
+                # check if banned
+                if Methods.is_banned(bot, chatid, userid):
+                    reason = bot.get_ban_reason(chatid, userid)
+                    bot.send_message(message.chat.id, f"User is already banned. Reason: {reason}")
+                    return
+
+                # ban if not banned
+                if args.d:
+                    if args.r:
+                        status = Handlers.ban_user(bot, chatid, userid, reason, True)
+                    else:
+                        status = Handlers.ban_user(bot, chatid, userid, True)
+                else:
+                    if args.r:
+                        status = Handlers.ban_user(bot, chatid, userid, reason)
+                    else:
+                        status = Handlers.ban_user(bot, chatid, userid)
+                if status:
+                    successlist.append(chatid)
+                else:
+                    faillist.append(chatid)
+            if successlist == len(chatids):
+                bot.send_message(message.chat.id, "Successfully banned in all chats")
+            else:
+                bot.send_message(message.chat.id, f"Failed to ban in all lists. Failed chats reported: {faillist}")
+
+      # Local Ban
+        elif not args.g and not args.u:
+            bot.logger.info(f"Local Banning")
+            # check if banned
+            if Methods.is_banned(bot, message.chat.id, userid):
+                bot.logger.info(f"User already Banned")
+                reason = bot.get_ban_reason(message.chat.id, userid)
+                bot.logger.debug(f"Reason: {reason}")
+                bot.send_message(message.chat.id, f"User is already banned. Reason: {reason}")
                 return
 
-       # Already banned
-        elif chatmember.restricted_by:
-            bot.send_message(message.chat.id, f"This user is already banned")
-            ban_state = None
-
-      # Reason storing flow
-        if args.r:
-            reason = ' '.join(args.r)
-           # banned in dryrun
-            if ban_state and args.d:
-                bot.send_message(message.chat.id, f"Provided reason: {reason}")
-           # banned
-            elif ban_state:
-                bot.update_ban_reason(message.chat.id, userid, reason)
-                bot.send_message(message.chat.id, f"Reason: {reason}")
+            # ban if not banned
+            if args.d:
+                if args.r:
+                    status = Handlers.ban_user(bot, message.chat.id, userid, reason, True)
+                else:
+                    status = Handlers.ban_user(bot, message.chat.id, userid, reason=None, debug=True)
             else:
-                reason = bot.get_ban_reason(chatid, userid)
-                bot.send_message(message.chat.id, {f"Reason: {reason}"})
+                if args.r:
+                    status = Handlers.ban_user(bot, message.chat.id, userid, reason)
+                else:
+                    status = Handlers.ban_user(bot, message.chat.id, userid)
+                return status
 
-    ban_user.filter = filters.command(["ban", "b"])
+    def ban_user(bot, chatid, userid, reason=None, debug=False):
+        """bans a user and stores the reason
+
+        Args:
+            bot (Client): bot
+            chatid (int): chatid
+            userid (int): userid
+            reason (string, optional): reason for ban. Defaults to None.
+        """
+        if not reason:
+            reason = "No Reason"
+        try:
+            if debug:
+                bot.logger.info(f"Pretending to ban user")
+                bot.logger.debug(f"userid: {userid} | chatid: {chatid}")
+                status = True
+            else:
+                status = bot.ban_chat_member(chatid, userid)
+        except Exception as e:
+            bot.logger.error(f"Could not ban the user. Reason: {e}")
+            return False
+        bot.update_ban_reason(chatid, userid, reason)
+        return status
+
+    ban_user_arg_control.filter = filters.command(["ban", "b"])
 
   # get user id =====================================================================================
     def get_user_id(bot, message):
@@ -387,12 +495,12 @@ class Handlers():
 
   # Reload handlers =================================================================================
     def reload_handlers(bot, message):
+        bot.logger.info("reload_handlers")
        # Delete original message
         bot.delete_messages(message.chat.id, message.id)
 
        # Check if user is owner
-        if not Methods.is_owner(bot, message):
-            bot.logger.debug(f"User: type: {message.from_user.id} Owner: type: {bot.bot_owner}" )
+        if not Methods.is_owner(bot, message.from_user.id):
             return
         
        # Unload and reload handlers/filters
@@ -412,7 +520,7 @@ class Handlers():
         bot.delete_messages(message.chat.id, message.id)
 
        # Check if owner
-        if not Methods.is_owner(bot, message):
+        if not Methods.is_owner(bot, message.from_user.id):
             return
 
        # create argparse
@@ -546,56 +654,83 @@ class Handlers():
   # test handler ====================================================================================
     def test_handler(bot, message):
         pass
-    #test_handler.filter = filters.command(["t", "test"])
+        handler_manager = HandlerManager()
+        filters = handler_manager.get_filters_chat(str(message.chat.id))
+        bot.send_message(message.chat.id, filters)
+    test_handler.filter = filters.command(["t", "test"])
 
   # allmessages =====================================================================================
     
     # NOTE You can't merge these, the objects are not the same
 
     def all_messages(bot, message):
-        bot.logger.debug(f"Running update: {message}")
+        bot.logger.info("all_messages")
+        bot.logger.debug(message)
         with update_lock:
-            Handler_Manager = HandlerManager()
             global lastupdate
             now = int(time.time())
-
-            # updatin last message
-            bot.logger.debug("Updating chat membership")
-            bot.update_lastmessage(message.chat.id, message.from_user.id, int(time.time()))
             
             # update user info
+            bot.logger.info("Updating user info")
             if now - lastupdate.get(message.from_user.id, 0) > 300:
                 bot.update_user(message.chat.id, message.from_user.id, message=message)
                 lastupdate.update({message.from_user.id: now})
 
             # update chat info
+            bot.logger.info("Updating chat info")
             if now - lastupdate.get(message.chat.id, 0) > 300:
-                bot.logger.debug("updating chat")
                 bot.update_chat(message.chat.id)
                 lastupdate.update({message.chat.id: now})
 
             # update user index
+            bot.logger.info("Updating user index")
             bot.update_users(message.chat.id)
 
     def all_chatmemberupdates(bot, ChatMemberUpdated):
         bot.logger.debug(f"Running update: {ChatMemberUpdated}")
         with update_lock:
-            Handler_Manager = HandlerManager()
             global lastupdate
-            global lastusersindex
             now = int(time.time())
 
             # update user info
+            bot.logger.info("Updating user info")
             if now - lastupdate.get(ChatMemberUpdated.from_user.id, 0) > 300:
                 bot.update_user(ChatMemberUpdated.chat.id, ChatMemberUpdated.from_user.id)
                 lastupdate.update({ChatMemberUpdated.from_user.id: now})
 
             # update chat info
+            bot.logger.info("Updating chat info")
             if now - lastupdate.get(ChatMemberUpdated.chat.id, 0) > 300:
                 bot.update_chat(ChatMemberUpdated.chat.id)
                 lastupdate.update({ChatMemberUpdated.chat.id: now})
 
-            # update chat memberships
-            if now - lastupdate.get(ChatMemberUpdated.chat.id, 0) > 300:
-                bot.instantiate_chat_membership(ChatMemberUpdated.chat.id, ChatMemberUpdated.from_user.id)
-                lastupdate.update({ChatMemberUpdated.chat.id: now})
+            # update user index
+            bot.logger.info("Updating user index")
+            bot.update_users(ChatMemberUpdated.chat.id)
+
+  # All Service Messages
+    def servicehandler(bot,message):
+        # If the user left and is not the bot itself
+        if message.left_chat_member is not None and message.left_chat_member.id == bot.get_me().id:
+            return
+        # If the user is a new member
+        if message.service is enums.MessageServiceType.NEW_CHAT_MEMBERS:
+            Handlers.newuserhandler(bot, message)
+
+        else:
+            deletemessage(bot, message, message.chat.id, message.id)
+
+  # New users =======================================================================================
+    def newuserhandler(bot, message):
+        # if the bot isn't in the list
+        if bot.get_me() not in message.new_chat_members:
+            deletemessage(bot, message, message.chat.id, message.id)
+            
+            # Ban user if they're in the uban list
+            for user in message.new_chat_members:
+                if bot.get_uban_status(user.id):
+                    bot.ban_chat_member(message.chat.id, user.id)
+
+        # if the bot is in the list
+        else:
+            pass # TODO - handle chat auth here
