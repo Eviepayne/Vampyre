@@ -185,14 +185,14 @@ class Handlers():
     # Cleanup for messagesweep
     def messagesweepcleanup(bot, statusmessage, guiddelete, guidcancel):
         """Cleanup after Callback is made
-        This is added in a new function for threading purposes
+            This is added in a new function for threading purposes
 
-        Args:
-            bot (Class): The Bot
-            statusmessage (message): The Message the bot is using to facilitate the original method
-            guiddelete (Str guid): The Delete Callback trigger
-            guidcancel (Str guid): The Cancel Callback trigger
-        """
+            Args:
+                bot (Class): The Bot
+                statusmessage (message): The Message the bot is using to facilitate the original method
+                guiddelete (Str guid): The Delete Callback trigger
+                guidcancel (Str guid): The Cancel Callback trigger
+            """
         time.sleep(10)
         with handler_lock:
             Handler_Manager = HandlerManager()
@@ -240,6 +240,7 @@ class Handlers():
         parser.add_argument('-g', action='store_true', help='Ban Globally (all chats you admin in) - Only works if Vampyre is in the group')
         parser.add_argument('-u', action='store_true', help='Ban in Universe (all chats Vampyre is in) - Only the owners of the bot can do this')
         parser.add_argument('-r', nargs='*', help='get or set ban reason')
+        parser.add_argument('--unban', action='store_true', help='invert the command to unban')
         parser.add_argument('-d', action='store_true')
         command = message.text.split()
         try:
@@ -292,6 +293,10 @@ class Handlers():
             for chatid in chatids:
                 # check if banned
                 if Methods.is_banned(bot, chatid, userid):
+                    if args.unban:
+                        bot.logger.info("Unbanning user")
+                        Handlers.unban_user(chatid, userid)
+                        return
                     successlist.append(chatid)
                     return
                 # ban if not banned
@@ -331,6 +336,10 @@ class Handlers():
                 chatid = chatid[0]
                 # check if banned
                 if Methods.is_banned(bot, chatid, userid):
+                    if args.unban:
+                        bot.logger.info("Unbanning user")
+                        Handlers.unban_user(chatid, userid)
+                        return
                     reason = bot.get_ban_reason(chatid, userid)
                     bot.send_message(message.chat.id, f"User is already banned. Reason: {reason}")
                     return
@@ -361,23 +370,47 @@ class Handlers():
             # check if banned
             if Methods.is_banned(bot, message.chat.id, userid):
                 bot.logger.info(f"User already Banned")
+                if args.unban:
+                    bot.logger.info("Unbanning user")
+                    Handlers.unban_user(message.chatid.id, userid)
+                    return
                 reason = bot.get_ban_reason(message.chat.id, userid)
                 bot.logger.debug(f"Reason: {reason}")
-                bot.send_message(message.chat.id, f"User is already banned. Reason: {reason}")
+                bot.send_message(message.chat.id, f"User is banned. Reason:\n\n{reason}")
                 return
 
             # ban if not banned
             if args.d:
                 if args.r:
-                    status = Handlers.ban_user(bot, message.chat.id, userid, reason, True)
+                    Handlers.ban_user(bot, message.chat.id, userid, reason, True)
                 else:
-                    status = Handlers.ban_user(bot, message.chat.id, userid, reason=None, debug=True)
+                    Handlers.ban_user(bot, message.chat.id, userid, reason=None, debug=True)
             else:
                 if args.r:
-                    status = Handlers.ban_user(bot, message.chat.id, userid, reason)
+                    Handlers.ban_user(bot, message.chat.id, userid, reason)
                 else:
-                    status = Handlers.ban_user(bot, message.chat.id, userid)
-                return status
+                    Handlers.ban_user(bot, message.chat.id, userid)
+
+    def unban_user(bot, chatid, userid, debug=False):
+        """unbans a user and clears the reason
+
+        Args:
+            bot (Client): bot
+            chatid (int): chatid
+            userid (int): userid
+        """
+        try:
+            if debug:
+                bot.logger.info(f"Pretending to unban user")
+                bot.logger.debug(f"userid: {userid} | chatid: {chatid}")
+                status = True
+            else:
+                status = bot.unban_chat_member(chatid, userid)
+        except Exception as e:
+            bot.logger.error(f"Could not unban the user. Reason: {e}")
+            return False
+        bot.update_ban_reason(chatid, userid, "Not Banned")
+        return status
 
     def ban_user(bot, chatid, userid, reason=None, debug=False):
         """bans a user and stores the reason
