@@ -225,7 +225,7 @@ class Client(PyrogramClient):
     def get_ban_reason(self, chatid, userid):
         self.does_user_exist(userid)
         try:
-            query = self.sql("SELECT ban_reason from [chat_memberships] WHERE user LIKE ? and chat LIKE ?", [userid, chatid], mode="Write")
+            query = self.sql("SELECT ban_reason from [chat_memberships] WHERE user LIKE ? and chat LIKE ?", [userid, chatid])
             return query[0][0]
         except Exception as e:
             self.logger.critical(f"Failed to update ban reason: {userid}:user | {chatid}:chat")
