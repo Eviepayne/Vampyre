@@ -40,7 +40,7 @@ bot = Client(
 if not os.path.exists(os.path.join(bot.db_path)):
     bot.logger.warning("Could not find database, creating it")
     bot.initialize_database()
-bot.logger.info("Vampyre is Initialized")
+print("========================= Vampyre is Initialized")
 
 # Create HandlerManager
 HandlerManager = HandlerManager()
@@ -50,15 +50,12 @@ scheduler = AsyncIOScheduler()
 
 # Main method =======================================
 def main(first_startup):
-    bot.logger.info("Starting Vampyre")
-    # Defining scheduled actions
-    async def scheduled_actions(): # TODO - This is a workaround for loading filters after a chat instantiates. Need a better way
-        # Reload Filters
-        Handler_manager.unload_filters(bot)
-        Handler_manager.load_filters(bot)
+    print("========================= Starting Vampyre")
+
+    #async def scheduled_actions(): # Can put scheduled things here
 
     Handler_manager = HandlerManager
-    scheduler.add_job(scheduled_actions, 'interval', minutes=10)
+    #scheduler.add_job(scheduled_actions, 'interval', minutes=10) # Scheduled job definition
     
     # Setting Jurigged watcher
     jurigged.watch(pattern="./Classes/*.py")
@@ -69,15 +66,28 @@ def main(first_startup):
 
     # Adding all handlers
     bot.add_handler(MessageHandler(Handlers.all_messages),10)
+    bot.add_handler(MessageHandler(Handlers.servicehandler,filters.service),10)
     bot.add_handler(ChatMemberUpdatedHandler(Handlers.all_chatmemberupdates),10)
 
     # Starting scheduled actions
-    scheduler.start()
-    bot.logger.info("Vampyre is Ready")
+    #scheduler.start() # start scheduled job
+    print("========================= Vampyre is Ready")
 
 bot.run(main(first_startup))
 
+    ### Logging Rules
+    # debug = This makes it easier to troubleshoot from production, should only show variable values.
+    # info = This is where I should put information that is saying what is happening at a high level
+    # warning = Something has happened that is expected in normal circumstances, but would indicate a problem, otherwise.
+    # error = Something has gone wrong, that needs attention.
+    # critical = Something has gone wrong so badly, that future use of the bot could be compromised. (data corruption/malformed data)
+
     ### Notes
+    # TODO - Learn compose and make each chat an individual client
+    # TODO - Add all breakpoints I want to use
+    # TODO - Move Handlers to a Handlers folder, import handlers from the folder as necessary
+    # TODO - configure role based filters - Need to make groups for chats, and have filters apply to them
+    #
     # Rate limites https://limits.tginfo.me/en
     # filter manager handler here
     # handle the command /filters and other arguments
