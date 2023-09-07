@@ -579,7 +579,17 @@ class Handlers():
             args = parser.parse_args(command[1:])
         except Exception as e:
             bot.send_message(message.chat.id, f"Invalid Argument\n{helpdialog}")
-       
+
+       # Check that there is at least 1 argument and that there is 1 level arg
+        if len(command) < 2:
+            bot.send_message(message.chat.id, f"You have to include arguments\n\n{helpdialog}")
+            return
+        invalidlist = [args.c, args.w, args.e, args.i, args.d]
+        sanitytest = sum(1 for item in invalidlist if item is not None)
+        if sanitytest > 1:
+            bot.send_message(message.chat.id, f"Only include 1 argument for the log level\n\n{helpdialog}")
+            return
+
        # Test logging level
         if args.t:
             bot.logger.critical("critical")
@@ -588,24 +598,24 @@ class Handlers():
             bot.logger.info("info")
             bot.logger.debug("debug")
             return
-
+       
        # Stdout level
         if args.s:
             if args.c:
                 bot.stdout_handler.setLevel(logging.CRITICAL)
-                bot.send_message(message.chat.id,"Logging set to critical")
+                bot.send_message(message.chat.id,"Stdout set to critical")
             elif args.w:
                 bot.stdout_handler.setLevel(logging.WARNING)
-                bot.send_message(message.chat.id,"Logging set to warning")
+                bot.send_message(message.chat.id,"Stdout set to warning")
             elif args.e:
                 bot.stdout_handler.setLevel(logging.ERROR)
-                bot.send_message(message.chat.id,"Logging set to error")
+                bot.send_message(message.chat.id,"Stdout set to error")
             elif args.i:
                 bot.stdout_handler.setLevel(logging.INFO)
-                bot.send_message(message.chat.id,"Logging set to info")
+                bot.send_message(message.chat.id,"Stdout set to info")
             elif args.d:
                 bot.stdout_handler.setLevel(logging.DEBUG)
-                bot.send_message(message.chat.id,"Logging set to debug")
+                bot.send_message(message.chat.id,"Stdout set to debug")
             else:
                 bot.send_message(message.chat.id,message.chat.id, helpdialog)
       
@@ -613,19 +623,19 @@ class Handlers():
         if args.f:
             if args.c:
                 bot.file_handler.setLevel(logging.CRITICAL)
-                bot.send_message(message.chat.id,"Logging set to critical")
+                bot.send_message(message.chat.id,"File log set to critical")
             elif args.w:
                 bot.file_handler.setLevel(logging.WARNING)
-                bot.send_message(message.chat.id,"Logging set to warning")
+                bot.send_message(message.chat.id,"File log set to warning")
             elif args.e:
                 bot.file_handler.setLevel(logging.ERROR)
-                bot.send_message(message.chat.id,"Logging set to error")
+                bot.send_message(message.chat.id,"File log set to error")
             elif args.i:
                 bot.file_handler.setLevel(logging.INFO)
-                bot.send_message(message.chat.id,"Logging set to info")
+                bot.send_message(message.chat.id,"File log set to info")
             elif args.d:
                 bot.file_handler.setLevel(logging.DEBUG)
-                bot.send_message(message.chat.id,"Logging set to debug")
+                bot.send_message(message.chat.id,"File log set to debug")
             else:
                 bot.send_message(message.chat.id,message.chat.id, helpdialog)
        
@@ -633,19 +643,19 @@ class Handlers():
         if args.g:
             if args.c:
                 bot.logger.setLevel(logging.CRITICAL)
-                bot.send_message(message.chat.id,"Logging set to critical")
+                bot.send_message(message.chat.id,"Logging base level set to critical")
             elif args.w:
                 bot.logger.setLevel(logging.WARNING)
-                bot.send_message(message.chat.id,"Logging set to warning")
+                bot.send_message(message.chat.id,"Logging base level set to warning")
             elif args.e:
                 bot.logger.setLevel(logging.ERROR)
-                bot.send_message(message.chat.id,"Logging set to error")
+                bot.send_message(message.chat.id,"Logging base level set to error")
             elif args.i:
                 bot.logger.setLevel(logging.INFO)
-                bot.send_message(message.chat.id,"Logging set to info")
+                bot.send_message(message.chat.id,"Logging base level set to info")
             elif args.d:
                 bot.logger.setLevel(logging.DEBUG)
-                bot.send_message(message.chat.id,"Logging set to debug")
+                bot.send_message(message.chat.id,"Logging base level set to debug")
             else:
                 bot.send_message(message.chat.id,message.chat.id, helpdialog)
 
