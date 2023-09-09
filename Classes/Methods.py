@@ -6,9 +6,9 @@ class Methods():
     def __init__(self):
         pass
 
-  # Is_banned
+  # Is_banned =======================================================================================
     def is_banned(bot, chatid, userid):
-        """Returns ban status
+        """Returns true if userid is banned in chatid
 
             Args:
                 bot (Client): Bot
@@ -28,8 +28,17 @@ class Methods():
         if chatmember.restricted_by:
             return True
 
-  # Create username
+  # Create username =================================================================================
     def create_username(user):
+        """gets a user's name.
+                it can be their username, first name, first name + Last name
+    
+            Args:
+                user (user): user
+
+            Returns:
+                name: username, first name, or first name + Last name
+            """
         if user.username:
             return user.username
         name=""
@@ -41,6 +50,16 @@ class Methods():
 
   # is_admin ========================================================================================
     def is_admin(bot, message): # TODO - replace all instances of this with is_admin_of_chat
+        """returns true if user is admin
+            This takes the id of the sender of a message
+
+            Args:
+                bot (Client): bot
+                message (message): message
+
+            Returns:
+                bool: True if user is admin
+            """
         logger = logging.getLogger("Vampyre.is_admin")
 
         if Methods.is_owner(bot, message.from_user.id):
@@ -65,7 +84,20 @@ class Methods():
 
         logger.debug("User is not admin")
 
+  # is_admin_of_chat ================================================================================
     def is_admin_of_chat(bot, message, chatid, userid):
+        """returns true if admin
+            This takes the id of any user
+
+            Args:
+                bot (Client): bot
+                message (message): message
+                chatid (int): chatid
+                userid (int): userid
+
+            Returns:
+                _type_: _description_
+            """
         bot.logger.info("is_admin_of_chat")
 
         if Methods.is_owner(bot, userid):
@@ -87,20 +119,19 @@ class Methods():
         if ChatMember.status == enums.ChatMemberStatus.ADMINISTRATOR or ChatMember.status == enums.ChatMemberStatus.OWNER:
             logger.debug("User is admin")
             return True
-
-  # is_owner ========================================================================================
-    # def is_owner(bot, message):
-    #     logger = logging.getLogger("Vampyre.is_owner")
-    #     logger.debug(f"Message.from_user.id: {message.from_user.id} bot.owner:{bot.bot_owner}")
-    #     if str(message.from_user.id) == bot.bot_owner:
-    #         logger.debug(f"User is owner")
-    #         return True
-    #     logger.debug(f"User is not owner")
     
-#===============================================================
-# is_owner 
+  # is_owner ===============================================================
 
     def is_owner(bot, userid):
+        """Checks if the user is a bot owner
+
+            Args:
+                bot (Client): bot
+                userid (int): userid
+
+            Returns:
+                _type_: _description_
+            """
         bot.logger.info("is_owner")
         bot.logger.debug(f"bot.owner:{bot.bot_owner}")
         if str(userid) == str(bot.bot_owner):
@@ -111,17 +142,17 @@ class Methods():
   # username_to_id ==================================================================================
     def get_id_from_mention(bot, message, username=None):
         """Returns an id from text that contains a username
-        If theres a mention, text_mention or just a string of the username, it returns the id
+            If theres a mention, text_mention or just a string of the username, it returns the id
 
-        Args:
-            bot (bot): bot
-            username (string): username of the user
-            message (message): message
+            Args:
+                bot (bot): bot
+                username (string): username of the user
+                message (message): message
 
-        Returns:
-            int: id
-            bool: False
-        """
+            Returns:
+                int: id
+                bool: False
+            """
         bot.logger.info("get_id_from_mention")
         # Try to get mention or text_mention
         text_mention = next((obj for obj in message.entities if obj.type == enums.MessageEntityType.TEXT_MENTION),None)
@@ -135,3 +166,9 @@ class Methods():
                 return False
         else:
             return False
+
+  # id_to_username ==================================================================================
+    def get_username_from_id(bot, message, userid):
+        bot.logger.info("get_username_from_id")
+        user = bot.get_users(userid)
+        return create_username(user)
